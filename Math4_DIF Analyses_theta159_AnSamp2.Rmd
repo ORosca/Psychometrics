@@ -1,0 +1,970 @@
+---
+title: "Differential Item Functioning Analysis for IES DAACS Mathematics Assessment
+  (v.2.0), May 2022 - May 2023, umgc1-and-ua2 Combined Sample, Analytic Sample 2,
+  n = 1570"
+author: "Oxana Rosca"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: true
+    toc_depth: 6
+    reference_docx: "C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/WordDocMarkdownTemplate.docx"
+  pdf_document:
+    toc: true
+    toc_depth: '6'
+  html_document:
+    toc: true
+    toc_depth: 6
+    theme: readable
+---
+
+# Purpose: To evaluate 174 math items on DIF across two age groups, AUS and TCAUS
+# Results: 91 (good) items have no DIF on age and have a significant positive correlation with Theta scores  from 174- and 159-item models, according to logistic regression analyses with graphic representations.
+The "good" items (m = 91) met the following characteristics:
+  a-parameters between 0.36 and 2.5
+  Standard Errors (SEs) for a-par smaller than 1.27
+  b-parameters between -2.3 and +1.8
+  SEs for b-par smaller than 1
+  showed no DIF on the grouping variable of age
+"good" items (m=91): Q006, Q007, Q009, Q015, Q016, Q018, Q020, Q022, Q024, Q026, Q028, Q029, Q031, Q032, Q034:Q036, Q039, Q042, Q044, Q047, Q049, Q050:Q053, Q055, Q057:Q059, Q062:Q065, Q067, Q069, Q074, Q076, Q078, Q080, Q081, Q085, Q086, Q088, Q090, Q092, Q097, Q098, Q100, Q101, Q102, Q104, Q108:Q111, Q113, Q115, Q118, Q120, Q121, Q124:Q127, Q131, Q133, Q134, Q136, Q138:Q140, Q143, Q145, Q147:Q151, Q154, Q156, Q157, Q159:Q162, Q164, Q166, Q171, Q173, Q174.
+
+# DAACS Math Assessment
+The DAACS Math Assessment consists of 174 math items from a pool of items (k = 174). Each student completed either 18 items (k_admin_min = 18) or 24 items (k_admin_max = 24) during their first attempt. For the 2022–2023 data collection, we implemented an adaptive multistage testing design, with item difficulty levels assigned by state standards and expert evaluations.
+
+# Participants 
+A total of 5447 participants completed at least one DAACS assessment, including 4152 (76.2%) from UMGC1 and 1295 from UA2. All participants had both a DAACS-assigned ID (DAACS_ID) and an institution-assigned ID.
+For the math assessment specifically, 4621 students participated : 3869 (83.7%) UMGC1 and 752 UA2.
+
+## Analytic Sample 2
+  
+### Analytic Sample 2 (AnSamp2), n = 1570; 884 (56.3%) UMGC1 and 686 UA2 students
+  Purpose: For DIF and age-group comparisons.
+  Composition: A subset of Sample 22D, including first-attempt scores from all non-speedy treatment students who took the math assessment in 2022, during their first semester, and had non-missing values on five demographic variables: age, gender, SES, transfer, military, data available.
+  Data: The dataset "math.items_AnSamp2" represents this sample.
+
+# R-Packages
+```{r}
+library("dplyr")
+library("ggplot2")
+library("ggpubr")
+library("grid")
+library("gridExtra")
+library("knitr")
+```
+
+# Sourse 
+Dr. Colvin's demo for dichotomous items, complete data 
+OR: I adjusted the script to run on incomplete data (with missing values) by
+1) applying na.omit(),
+2) matching the colors in the plots to  the non-missing values,
+3) the model-fitting process is performed only on the subset of data with 
+non-missing responses for each item.
+Some warnings still persisted. See Chat GPT's advise at the end of the script.
+
+# Data
+```{r}
+#load("~/Dropbox (Hunter College)/DAACS-Validity/Analyses/dataPrep/Math_dataClean-UMGC1UA2_2.RData")
+#load("D:/Dropbox/DAACS-Validity/Analyses/Math/Math_dataClean-UMGC1UA2_2.RData")
+load("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/math/Math_dataClean-umgc1ua2_3.RData")
+```
+
+# DIF Analysis function
+
+DIF Analysis function was adjusted for missing values
+
+```{r}
+#library("dplyr")
+#library("ggplot2")
+#library("knitr")
+
+DIF_LogRegAnalysis <- function(X_tmp, G_tmp, T_tmp, title, mapping_df) {
+  n <- nrow(X_tmp)  # Number of students
+  n <- ncol(X_tmp)  # Number of items
+  item_names <- colnames(X_tmp)  # Get item QIDs
+  g_levels <- unique(G_tmp[!is.na(G_tmp)])  # Extract actual levels from G_tmp
+  g_labels <- as.character(g_levels)  # Convert to character for use in ggplot legend
+
+  results <- data.frame(Item_IQD = character(), Selected_Model = character(), Decision = character(), stringsAsFactors = FALSE)
+
+  # Generate filenames
+  timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+  txt_file <- paste0(title, "_DIF_", timestamp, ".txt")
+  csv_file <- paste0(title, "_DIF_", timestamp, ".csv")
+  pdf_file <- paste0(title, "_DIF_", timestamp, ".pdf")
+
+  # Open text file for writing
+  sink(txt_file)
+
+  plots <- list()  # Store plots for Markdown display
+
+  for (j in 1:n) {
+    item_id <- item_names[j]  # Ensure item_id is assigned before use
+    valid_idx <- !is.na(X_tmp[, j]) & !is.na(G_tmp)  # Exclude students with NA in G_tmp
+    data_j <- data.frame(X_tmp = X_tmp[valid_idx, j], T_tmp = T_tmp[valid_idx], G_tmp = G_tmp[valid_idx])
+
+    if (nrow(data_j) > 1) {
+      data_j$G_tmp <- factor(data_j$G_tmp)  # Remove NA levels from grouping variable
+
+      # Get the difficulty level from mapping_unique_math.items_umgc1ua2
+      difficulty_level <- mapping_df %>%
+        filter(qid.ua2 == item_id) %>%
+        pull(difficulty)
+
+      if (length(difficulty_level) == 0) {
+        difficulty_level <- "Unknown"  # Default if no match is found
+      }
+
+      cat("\n========== Item:", item_id, "==========\n")
+
+      fit_model <- function(formula) {
+        tryCatch({
+          glm(formula, data = data_j, family = "binomial", control = glm.control(maxit = 50))
+        }, warning = function(w) {
+          if (grepl("fitted probabilities numerically 0 or 1", w$message)) {
+            cat("\nWarning: Separation detected for", deparse(formula), "- Using bias-reduced model\n")
+            return(brglm(formula, data = data_j, family = "binomial"))
+          }
+          return(NULL)
+        }, error = function(e) {
+          cat("\nError fitting model:", deparse(formula), "- Skipping model\n")
+          return(NULL)
+        })
+      }
+
+      models <- list(
+        "Model 1" = fit_model(X_tmp ~ T_tmp),
+        "Model 2" = fit_model(X_tmp ~ T_tmp + G_tmp),
+        "Model 3" = fit_model(X_tmp ~ T_tmp * G_tmp)
+      )
+
+      models <- Filter(Negate(is.null), models)
+
+      if (length(models) == 0) {
+        cat("\nSkipping Item:", item_id, "- No models converged.\n")
+        next
+      }
+
+      aic_values <- sapply(models, function(m) m$aic)
+      best_model_name <- names(which.min(aic_values))
+      best_model <- models[[best_model_name]]
+
+      for (m in names(models)) {
+        cat("\n", m, "\n")
+        print(summary(models[[m]]))
+      }
+
+      summary_model <- summary(best_model)
+      coefs <- summary_model$coefficients
+      coef_names <- rownames(coefs)
+
+      no_t <- "T_tmp" %in% coef_names && !is.na(coefs["T_tmp", 4]) && coefs["T_tmp", 4] >= 0.05
+      decision <- ifelse(no_t, "No T", "")
+
+      g_name <- coef_names[grepl("^G_tmp", coef_names)]
+      interaction_name <- coef_names[grepl("^T_tmp:G_tmp", coef_names)]
+
+      g_significant <- ifelse(length(g_name) > 0 && !is.na(coefs[g_name, 4]), coefs[g_name, 4] < 0.05, FALSE)
+      t_g_significant <- ifelse(length(interaction_name) > 0 && !is.na(coefs[interaction_name, 4]), coefs[interaction_name, 4] < 0.05, FALSE)
+
+      if (g_significant & t_g_significant) {
+        decision <- paste(decision, "Non-uniform DIF")
+      } else if (g_significant) {
+        decision <- paste(decision, "Uniform DIF")
+      } else if (t_g_significant) {
+        decision <- paste(decision, "Non-uniform DIF")
+      } else {
+        decision <- paste(decision, "No DIF")
+      }
+
+      decision <- trimws(decision)
+
+      results <- rbind(results, data.frame(Item_IQD = item_id, Selected_Model = best_model_name, Decision = decision))
+
+      cat("\nBest Model:", best_model_name, "\nDecision:", decision, "\n")
+
+      ### **PLOT THE BEST MODEL using ggplot2** ###
+      fitted_values <- best_model$fitted.values
+
+      if (length(data_j$T_tmp) == length(fitted_values)) {
+        data_j$fitted <- fitted_values  # Add fitted values to the data frame
+
+        # Count number of students per group
+        students_count <- data_j %>%
+          group_by(G_tmp) %>%
+          summarise(n = n()) %>%
+          arrange(G_tmp)
+
+        # Create labels including sample sizes
+        group_labels <- paste0(as.character(students_count$G_tmp), " (n = ", students_count$n, ")")
+
+        p <- ggplot(data_j, aes(x = T_tmp, y = fitted, color = as.factor(G_tmp))) +
+          geom_point(size = 3) +
+          labs(
+            title = paste(best_model_name, "- AIC:", round(aic_values[best_model_name], 3)),
+            x = "Theta",
+            y = paste("Expected Score on", item_id, "(", difficulty_level, "Item)"),
+            color = "Group"
+          ) +
+          scale_color_manual(values = c("black", "red"), labels = group_labels) +
+          theme_minimal() +
+          theme(legend.position = "top", legend.title = element_text(face = "bold"), legend.text = element_text(size = 12))
+
+        plots[[item_id]] <- p  # Store plot
+      }
+    }
+  }
+
+  sink()  # Close text output
+
+  # Save plots to PDF
+  pdf(pdf_file, width = 8, height = 6, colormodel = "srgb")
+
+  if (length(plots) > 0) {
+    for (item_id in names(plots)) {
+      print(plots[[item_id]])
+    }
+  } else {
+    plot.new()
+    text(0.5, 0.5, "No plots available", cex = 2)
+  }
+
+  dev.off()
+
+  write.csv(results, csv_file, row.names = FALSE)
+
+  ### **Markdown Output Section**
+  cat("\n### Analysis Completed ###\n")
+  cat("Results saved to:\n")
+  cat("-", txt_file, "\n")
+  cat("-", csv_file, "\n")
+  cat("-", pdf_file, "\n\n")
+
+  # Display results in Markdown
+  print(kable(results, format = "markdown"))
+
+  # Print plots inline in Markdown
+  for (item_id in names(plots)) {
+    print(plots[[item_id]])
+  }
+
+  return(results)
+}
+
+```
+
+# Age
+
+## Distribution of age within Analytic Sample 2
+
+A function Propensities_CatVar for a propensity/frequencies table for a single variable is saved in the loaded data.
+```{r}
+# Propensities_CatVar <- function(data, variable) {
+#   data %>%
+#     group_by(!!sym(variable)) %>% # Group by the variable
+#     dplyr::summarize(Count = n(), .groups = "drop") %>% # Use dplyr's summarize
+#     mutate(
+#       Percent = round(Count / sum(Count, na.rm = TRUE) * 100, 2) # Compute percentages
+#     ) %>%
+#     rename(!!variable := !!sym(variable)) # Rename the column to match the variable name
+# }
+```
+
+
+Adjust the Propensities_CatVar function to include metadata similar to the Propensities_TwoVars function
+```{r}
+# Define the new function
+Propensities_CatVar_withMeta <- function(data, variable) {
+  # Validate that the input is a data frame
+  if (!inherits(data, "data.frame")) {
+    stop("Input `data` must be a data frame.")
+  }
+  # Perform the calculations
+  result <- data %>%
+    group_by(!!sym(variable)) %>% # Group by the variable
+    dplyr::summarize(Count = n(), .groups = "drop") %>% # Use dplyr's summarize
+    mutate(
+      Percent = round(Count / sum(Count, na.rm = TRUE) * 100, 2) # Compute percentages
+    ) %>%
+    rename(!!variable := !!sym(variable)) # Rename the column to match the variable name
+  
+  # Add metadata
+  attr(result, "metadata") <- list(
+    tibble_name = deparse(substitute(data)), # Name of the input data frame
+    variable_names = variable, # The variable used in the analysis
+    n_obs = nrow(data) # Total number of observations in the data frame
+  )
+    return(result)
+}
+
+math_Age_d24_AnSamp2_tb <- 
+  Propensities_CatVar_withMeta(math.items_AnSamp2, "Age_d24")
+print(math_Age_d24_AnSamp2_tb)
+```
+
+### across colleges
+```{r}
+# aka table(math.items_AnSamp2$Age_d24,math.items_AnSamp2$college, useNA = "always")
+# A function for a propensity/frequencies table for two variables is also saved in the loaded data.
+# Define the function
+# Propensities_TwoVars <- function(data, var1, group_var) {
+# if (!inherits(data, "data.frame")) {
+# stop("Input `data` must be a data frame.")
+# }
+# # Proceed with calculations
+# result <- data %>%
+# group_by(!!sym(group_var), !!sym(var1)) %>%
+# dplyr::summarize(Count = n(), .groups = "drop") %>%
+# mutate(
+# Percent = round(Count / sum(Count, na.rm = TRUE) * 100, 2)
+# ) %>%
+# rename(!!var1 := !!sym(var1), !!group_var := !!sym(group_var))
+# # Add metadata
+# attr(result, "metadata") <- list(
+# tibble_name = deparse(substitute(data)),
+# variable_names = paste(var1, group_var, sep = ", "),
+# n_obs = nrow(data)
+# )
+# return(result)
+# }
+
+math_Age_d24_AnSamp2_college_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "Age_d24","college")
+
+math_Age_d24_AnSamp2_college_tb
+```
+
+## DIF age
+
+### 174 Items
+For F-scores calculated from all 174-item unidimensional model
+```{r}
+X_tmp <- math.items_AnSamp2 %>% 
+  select(Q001:Q174)
+G_tmp <- math.items_AnSamp2$Age_d24 # Grouping variable
+T_tmp <- math.items_AnSamp2$Theta_math174 # Factor scores (continuous)
+mapping_df_tmp<- mapping_unique_math.items_umgc1ua2
+
+# library("ggplot2")
+# library("knitr")
+
+# Run the function
+DIF_Math174_Age_umgc1ua2_AnSamp2 <- DIF_LogRegAnalysis(X_tmp, G_tmp, T_tmp, mapping_df_tmp, title = "Math174_Age_umgc1ua2_AnSamp2")
+DIF_Math174_Age_umgc1ua2_AnSamp2
+```
+
+### 159 Items
+For F-scores calculated from 159-item unidimensional model
+Response matrix: 15 items were removed due to poor a0-parameters: < 0.3 and > 4
+(Q008,11,13,17,70,73,79,82,106,123,128,130,132,168,170).
+```{r}
+X_tmp <- math.items_AnSamp2 %>%
+  select(Q001:Q007,Q009,Q010,Q012,Q014:Q016,Q018:Q069,Q071,Q072,Q074:Q078,Q080,
+         Q081,Q083:Q105,Q107:Q122,Q124:Q127,Q129,Q131,Q133:Q167,Q169,Q171:Q174)
+G_tmp <- math.items_AnSamp2$Age_d24 # Grouping variable
+T_tmp <- math.items_AnSamp2$Theta_math159 # Factor scores (continuous)
+
+# Run the function
+DIF_Math159_Age_umgc1ua2_AnSamp2 <- DIF_LogRegAnalysis(X_tmp, G_tmp, T_tmp, mapping_df_tmp, title = "Math159_Age_umgc1ua2_AnSamp2")
+```
+
+# Gender 
+
+## Distribution within AnSamp2
+```{r}
+math_Gender_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "gender")
+math_Gender_AnSamp2_tb
+```
+
+### across colleges
+```{r}
+math_Gender_AnSamp2_college_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "gender","college")
+
+math_Gender_AnSamp2_college_tb
+```
+
+### across age-groups
+```{r}
+math_Gender_AnSamp2_age_d24_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "gender","Age_d24")
+math_Gender_AnSamp2_age_d24_tb
+```
+
+## DIF gender
+
+```{r}
+# Call the DIF function for Gender variable
+G_tmp <- math.items_AnSamp2$gender 
+
+# Run the function
+DIF_Math174_Gender_umgc1ua2_AnSamp2 <- DIF_LogRegAnalysis(X_tmp, G_tmp, T_tmp, mapping_df_tmp, title = "Math174_Gender_umgc1ua2_AnSamp2")
+
+```
+
+# Transfer
+
+## Distribution, AnSamp2
+```{r}
+math_Transfer_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "transfer")
+math_Transfer_AnSamp2_tb
+```
+
+### across colleges
+```{r}
+math_Transfer_AnSamp2_college_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "transfer","college")
+
+math_Transfer_AnSamp2_college_tb
+```
+
+### across age-groups
+```{r}
+math_Transfer_AnSamp2_age_d24_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "transfer","Age_d24")
+math_Transfer_AnSamp2_age_d24_tb
+```
+
+## DIF transfer
+```{r}
+# Call the DIF function
+G_tmp <- math.items_AnSamp2$transfer 
+
+# Run the function
+DIF_Math174_Transfer_umgc1ua2_AnSamp2 <- DIF_LogRegAnalysis(X_tmp, G_tmp, T_tmp, mapping_df_tmp, title = "Math174_Transfer_umgc1ua2_AnSamp2")
+
+```
+
+# Military 
+
+## Distribution within AnSamp2
+```{r}
+math_Military_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "Military")
+math_Military_AnSamp2_tb
+```
+
+### across colleges
+```{r}
+math_Military_AnSamp2_college_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "Military","college")
+
+math_Military_AnSamp2_college_tb
+```
+
+### across age-groups
+```{r}
+math_Military_AnSamp2_age_d24_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "Military","Age_d24")
+math_Military_AnSamp2_age_d24_tb
+```
+
+## DIF military
+```{r}
+# Call the DIF function
+G_tmp <- math.items_AnSamp2$Military 
+
+# Run the function
+DIF_Math174_Military_umgc1ua2_AnSamp2 <- DIF_LogRegAnalysis(X_tmp, G_tmp, T_tmp, mapping_df_tmp, title = "Math174_Military_umgc1ua2_AnSamp2")
+
+```
+
+# Lower SES 
+
+## Distribution within AnSamp2
+```{r}
+math_LowSES_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "Pell")
+math_LowSES_AnSamp2_tb
+```
+
+### across colleges
+```{r}
+math_LowSES_AnSamp2_college_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "Pell","college")
+
+math_LowSES_AnSamp2_college_tb
+```
+
+### across age-groups
+```{r}
+math_LowSES_AnSamp2_age_d24_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "Pell","Age_d24")
+math_LowSES_AnSamp2_age_d24_tb
+```
+
+## DIF SES
+```{r}
+# Call the DIF function
+G_tmp <- math.items_AnSamp2$Pell 
+
+# Run the function
+DIF_Math174_lowerSES_umgc1ua2_AnSamp2 <- DIF_LogRegAnalysis(X_tmp, G_tmp, T_tmp, mapping_df_tmp, title = "Math174_lowerSES_umgc1ua2_AnSamp2")
+
+```
+
+# Ethnicity: do not run DIF
+
+## Distribution, AnSamp2
+```{r}
+math_Ethnicity_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "ethnicity")
+math_Ethnicity_AnSamp2_tb
+```
+
+### across colleges
+```{r}
+math_Ethnicity_AnSamp2_college_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "ethnicity","college")
+
+math_Ethnicity_AnSamp2_college_tb
+```
+
+### across age-groups
+```{r}
+math_Ethnicity_AnSamp2_age_d24_tb <- 
+  Propensities_TwoVars(math.items_AnSamp2, "ethnicity","Age_d24")
+math_Ethnicity_AnSamp2_age_d24_tb
+```
+
+# Mean Theta159 Scores in Demographic Groups
+
+## samp22D
+```{r}
+# library(ggplot2)
+# library(gridExtra)
+# library(ggpubr)
+# library(dplyr)
+# library(grid)
+
+# Define common y-axis limits for consistency
+y_limits_tmp <- range(math.items_samp22D$Theta_math159, na.rm = TRUE)
+
+# Dynamically determine sample size for the title
+sample_size_tmp <- nrow(math.items_samp22D)
+title_tmp <- paste("Math Theta159 scores Across Demographic Variables, n =", sample_size_tmp)
+
+# Define ethnicity labels (shortened) and legend
+ethnicity_labels <- c(
+  "All" = "All Ethnicities",
+  "InternSt" = "International Students (Nonresident Alien)",
+  "Asian" = "Asian Americans",
+  "White" = "White Americans",
+  "Multiracial" = "Two or more races",
+  "NativeAm" = "American Indian or Alaska Native",
+  "Hispanic" = "Hispanic/Latino",
+  "Black" = "Black or African American",
+  "PacificIsl" = "Native Hawaiian or Other Pacific Islander",
+  "NA" = "Race and ethnicity unknown"
+)
+
+# Compute correct counts
+ethnicity_counts_tmp <- table(math.items_samp22D$ethnicity, useNA = "always")
+ethnicity_counts_tmp <- c(
+  "All" = nrow(math.items_samp22D),
+  "InternSt" = ethnicity_counts_tmp["Nonresident Alien"],
+  "Asian" = ethnicity_counts_tmp["Asian"],
+  "White" = ethnicity_counts_tmp["White"],
+  "Multiracial" = ethnicity_counts_tmp["Two or more races"],
+  "NativeAm" = ethnicity_counts_tmp["American Indian or Alaska Native"],
+  "Hispanic" = ethnicity_counts_tmp["Hispanic/Latino"],
+  "Black" = ethnicity_counts_tmp["Black or African American"],
+  "PacificIsl" = ethnicity_counts_tmp["Native Hawaiian or Other Pacific Islander"],
+  "NA" = ethnicity_counts_tmp["Missing"])
+
+# Generate legend text with a slight gap from the last boxplot
+legend_text_tmp <- paste(names(ethnicity_labels), "= ", ethnicity_labels, ", n =", ethnicity_counts_tmp, collapse = "\n")
+
+# Create Ethnicity Boxplots (10 groups, in a single row, with a slightly wider layout)
+ethnicity_groups_tmp <- list(
+  "All" = math.items_samp22D,
+  "InternSt" = subset(math.items_samp22D, ethnicity == "Nonresident Alien"),
+  "Asian" = subset(math.items_samp22D, ethnicity == "Asian"),
+  "White" = subset(math.items_samp22D, ethnicity == "White"),
+  "Multiracial" = subset(math.items_samp22D, ethnicity == "Two or more races"),
+  "NativeAm" = subset(math.items_samp22D, ethnicity == "American Indian or Alaska Native"),
+  "Hispanic" = subset(math.items_samp22D, ethnicity == "Hispanic/Latino"),
+  "Black" = subset(math.items_samp22D, ethnicity == "Black or African American"),
+  "PacificIsl" = subset(math.items_samp22D, ethnicity == "Native Hawaiian or Other Pacific Islander"),
+  "NA" = subset(math.items_samp22D, ethnicity == "Missing") # Ethnicity missing values are coded as a "Missing" group
+)
+
+mathTheta159_ethnicity_boxplots <- lapply(names(ethnicity_groups_tmp), function(group) {
+  ggplot(ethnicity_groups_tmp[[group]], aes(x = factor(1), y = Theta_math159)) +
+    geom_boxplot(width = 0.3, fill = "gray") +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(x = -0.35, y = 0.11),
+                 size = 2.5, color = "black") +  # Font size reduced to match lower row
+    labs(title_tmp = group, x = ifelse(group == "NativeAm", "Ethnicity", ""), y = ifelse(group == "All", "Math Theta159 Scores", "")) +
+    theme_minimal() +
+    theme(axis.text.x = element_blank(), plot.margin = margin(r = 20)) +  # Increased right margin
+    ylim(y_limits_tmp)
+})
+
+# Create Demographic Boxplots (6 groups, in a single row with increased spacing)
+demographic_boxplots <- list(
+  ggboxplot(math.items_samp22D, x = "college", y = "Theta_math159", color = "college",
+            palette = c("black", "#999999"), ylab = "Math Theta159 Score", xlab = "College", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(math.items_samp22D, x = "Age_d24", y = "Theta_math159", color = "Age_d24",
+            palette = c("black", "#999999"), ylab = "", xlab = "Age Group", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(na.omit(math.items_samp22D[c("gender", "Theta_math159")]), x = "gender", y = "Theta_math159", color = "gender",
+          palette = c("black", "#999999"), ylab = "", xlab = "Gender", width = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = round(after_stat(y), 2)),
+               position = position_nudge(y = 0.11),
+               size = 2.5, color = "black") +
+  theme(legend.position = "none"),
+
+ggboxplot(na.omit(math.items_samp22D[c("Military", "Theta_math159")]), x = "Military", y = "Theta_math159", color = "Military",
+          palette = c("black", "#999999"), ylab = "", xlab = "Military Status", width = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = round(after_stat(y), 2)),
+               position = position_nudge(y = 0.11),
+               size = 2.5, color = "black") +
+  theme(legend.position = "none"),
+
+
+  ggboxplot(math.items_samp22D, x = "Pell", y = "Theta_math159", color = "Pell",
+            palette = c("black", "#999999"), ylab = "", xlab = "Financial Support", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(math.items_samp22D, x = "transfer", y = "Theta_math159", color = "transfer",
+            palette = c("black", "#999999"), ylab = "", xlab = "Transfer Student", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none")
+)
+
+# Save to PDF with improved spacing for the legend
+pdf("Math_Theta159_Demographics_Boxplots_samp22D.pdf", width = 14, height = 8)
+
+grid.arrange(
+  arrangeGrob(
+    arrangeGrob(grobs = mathTheta159_ethnicity_boxplots, ncol = 10),
+    textGrob(legend_text_tmp, x = 0.98, just = "right", gp = gpar(fontsize = 8)),  # Slightly pushed right
+    ncol = 2, widths = c(4, 1.2)  # Increased right spacing
+  ),
+  arrangeGrob(grobs = demographic_boxplots, ncol = 6),
+  nrow = 2,
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+dev.off()
+
+```
+
+## AnSamp2
+```{r}
+# Define common y-axis limits for consistency
+y_limits_tmp <- range(math.items_AnSamp2$Theta_math159, na.rm = TRUE)
+
+# Dynamically determine sample size for the title
+sample_size_tmp <- nrow(math.items_AnSamp2)
+title_tmp <- paste("Math Theta159 scores Across Demographic Variables, n =", sample_size_tmp)
+
+# Compute correct counts
+ethnicity_counts_tmp <- table(math.items_AnSamp2$ethnicity, useNA = "always")
+ethnicity_counts_tmp <- c(
+  "All" = nrow(math.items_AnSamp2),
+  "InternSt" = ethnicity_counts_tmp["Nonresident Alien"],
+  "Asian" = ethnicity_counts_tmp["Asian"],
+  "White" = ethnicity_counts_tmp["White"],
+  "Multiracial" = ethnicity_counts_tmp["Two or more races"],
+  "NativeAm" = ethnicity_counts_tmp["American Indian or Alaska Native"],
+  "Hispanic" = ethnicity_counts_tmp["Hispanic/Latino"],
+  "Black" = ethnicity_counts_tmp["Black or African American"],
+  "PacificIsl" = ethnicity_counts_tmp["Native Hawaiian or Other Pacific Islander"],
+  "NA" = ethnicity_counts_tmp["Missing"])
+
+# Generate legend text with a slight gap from the last boxplot
+legend_text_tmp <- paste(names(ethnicity_labels), "= ", ethnicity_labels, ", n =", ethnicity_counts_tmp, collapse = "\n")
+
+# Create Ethnicity Boxplots (10 groups, in a single row, with a slightly wider layout)
+ethnicity_groups_tmp <- list(
+  "All" = math.items_AnSamp2,
+  "InternSt" = subset(math.items_AnSamp2, ethnicity == "Nonresident Alien"),
+  "Asian" = subset(math.items_AnSamp2, ethnicity == "Asian"),
+  "White" = subset(math.items_AnSamp2, ethnicity == "White"),
+  "Multiracial" = subset(math.items_AnSamp2, ethnicity == "Two or more races"),
+  "NativeAm" = subset(math.items_AnSamp2, ethnicity == "American Indian or Alaska Native"),
+  "Hispanic" = subset(math.items_AnSamp2, ethnicity == "Hispanic/Latino"),
+  "Black" = subset(math.items_AnSamp2, ethnicity == "Black or African American"),
+  "PacificIsl" = subset(math.items_AnSamp2, ethnicity == "Native Hawaiian or Other Pacific Islander"),
+  "NA" = subset(math.items_AnSamp2, ethnicity == "Missing") # Ethnicity missing values are coded as a "Missing" group
+)
+
+mathTheta159_ethnicity_boxplots <- lapply(names(ethnicity_groups_tmp), function(group) {
+  ggplot(ethnicity_groups_tmp[[group]], aes(x = factor(1), y = Theta_math159)) +
+    geom_boxplot(width = 0.3, fill = "gray") +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(x = -0.35, y = 0.11),
+                 size = 2.5, color = "black") +  # Font size reduced to match lower row
+    labs(title_tmp = group, x = ifelse(group == "NativeAm", "Ethnicity", ""), y = ifelse(group == "All", "Math Theta159 Scores", "")) +
+    theme_minimal() +
+    theme(axis.text.x = element_blank(), plot.margin = margin(r = 20)) +  # Increased right margin
+    ylim(y_limits_tmp)
+})
+
+# Create Demographic Boxplots (6 groups, in a single row with increased spacing)
+demographic_boxplots <- list(
+  ggboxplot(math.items_AnSamp2, x = "college", y = "Theta_math159", color = "college",
+            palette = c("black", "#999999"), ylab = "Math Theta159 Score", xlab = "College", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(math.items_AnSamp2, x = "Age_d24", y = "Theta_math159", color = "Age_d24",
+            palette = c("black", "#999999"), ylab = "", xlab = "Age Group", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(na.omit(math.items_AnSamp2[c("gender", "Theta_math159")]), x = "gender", y = "Theta_math159", color = "gender",
+          palette = c("black", "#999999"), ylab = "", xlab = "Gender", width = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = round(after_stat(y), 2)),
+               position = position_nudge(y = 0.11),
+               size = 2.5, color = "black") +
+  theme(legend.position = "none"),
+
+ggboxplot(na.omit(math.items_AnSamp2[c("Military", "Theta_math159")]), x = "Military", y = "Theta_math159", color = "Military",
+          palette = c("black", "#999999"), ylab = "", xlab = "Military Status", width = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = round(after_stat(y), 2)),
+               position = position_nudge(y = 0.11),
+               size = 2.5, color = "black") +
+  theme(legend.position = "none"),
+
+
+  ggboxplot(math.items_AnSamp2, x = "Pell", y = "Theta_math159", color = "Pell",
+            palette = c("black", "#999999"), ylab = "", xlab = "Financial Support", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(math.items_AnSamp2, x = "transfer", y = "Theta_math159", color = "transfer",
+            palette = c("black", "#999999"), ylab = "", xlab = "Transfer Student", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none")
+)
+
+# Save to PDF with improved spacing for the legend
+pdf("Math_Theta159_Demographics_Boxplots_AnSamp2.pdf", width = 14, height = 8)
+
+grid.arrange(
+  arrangeGrob(
+    arrangeGrob(grobs = mathTheta159_ethnicity_boxplots, ncol = 10),
+    textGrob(legend_text_tmp, x = 0.98, just = "right", gp = gpar(fontsize = 8)),  # Slightly pushed right
+    ncol = 2, widths = c(4, 1.2)  # Increased right spacing
+  ),
+  arrangeGrob(grobs = demographic_boxplots, ncol = 6),
+  nrow = 2,
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+dev.off()
+
+```
+
+## Ethnicity Groups Boxplots
+```{r}
+title_tmp <- paste("Math Theta159 Scores Across Ethnicity Groups, n =", sample_size_tmp)
+
+grid.arrange(
+  arrangeGrob(grobs = mathTheta159_ethnicity_boxplots, ncol = 10),
+  textGrob(legend_text_tmp, x = 0.5, gp = gpar(fontsize = 8)),
+  nrow = 2,
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+```
+
+## Other Demographic Groups Boxplots
+```{r}
+title_tmp <- paste("Math Theta159 Scores Across Demographic Groups, n =", sample_size_tmp)
+
+grid.arrange(
+  arrangeGrob(grobs = demographic_boxplots, ncol = 3),  # Auto layout
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+```
+
+# Save all Frequency-propencity Tables in a pdf file
+
+A function to generate a PDF with frequency/propensity tables without titles
+```{r}
+generate_pdf_Frequencies_woTitles <- function(tibble_list, pdf_name, tables_per_page = 9, title = "PDF Title") {
+  # Start PDF output in landscape orientation
+  pdf(pdf_name, width = 11, height = 8.5)
+  
+  # Filter out invalid tibbles (NULL, non-data.frames, or empty)
+  valid_tibble_list <- tibble_list[!sapply(tibble_list, function(tbl) {
+    is.null(tbl) || !inherits(tbl, "data.frame") || nrow(tbl) == 0
+  })]
+  
+  # Stop if no valid tibbles remain
+  if (length(valid_tibble_list) == 0) {
+    stop("No valid tibbles to render.")
+  }
+  
+  # Split valid tibbles into chunks for multi-page layout
+  tibble_chunks <- split(valid_tibble_list, ceiling(seq_along(valid_tibble_list) / tables_per_page))
+  
+  first_page <- TRUE
+  
+  for (chunk in tibble_chunks) {
+    table_grobs <- list()
+    
+    for (tibble_name in names(chunk)) {
+      tibble <- chunk[[tibble_name]]
+      
+      # Ensure tibble is valid before proceeding
+      if (is.null(tibble) || !inherits(tibble, "data.frame") || nrow(tibble) == 0) {
+        message(paste("Skipping invalid tibble:", tibble_name))
+        next
+      }
+      
+      # Render table grob with error handling
+      table_grob <- tryCatch({
+        gridExtra::tableGrob(tibble, rows = NULL)
+      }, error = function(e) {
+        message(paste("Error rendering table for:", tibble_name, "-", e$message))
+        NULL
+      })
+      
+      # Add table to list if successful
+      if (!is.null(table_grob)) {
+        table_grobs <- append(table_grobs, list(table_grob))
+      }
+    }
+    
+    # Render tables on the page
+    if (length(table_grobs) > 0) {
+      if (first_page) {
+        # Add title to the first page
+        title_grob <- grid::textGrob(
+          title, x = 0.5, y = 0.9, gp = grid::gpar(fontsize = 20, fontface = "bold")
+        )
+        gridExtra::grid.arrange(title_grob, gridExtra::arrangeGrob(grobs = table_grobs, ncol = 3), heights = c(1, 7))
+        first_page <- FALSE
+      } else {
+        gridExtra::grid.arrange(grobs = table_grobs, ncol = 3)
+      }
+    } else {
+      message("No tables to render on this page.")
+    }
+  }
+  
+  # Close the PDF device
+  dev.off()
+}
+```
+
+
+Combine all tibbles into a list
+```{r}
+math_Age_d24_AnSamp2_tb
+math_Age_d24_AnSamp2_college_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "Age_d24","college")
+math_Gender_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "gender")
+math_Gender_AnSamp2_college_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "gender","college")
+math_Gender_AnSamp2_age_d24_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "gender","Age_d24")
+math_Transfer_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "transfer")
+math_Transfer_AnSamp2_college_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "transfer","college")
+math_Transfer_AnSamp2_age_d24_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "transfer","Age_d24")
+math_Military_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "Military")
+math_Military_AnSamp2_college_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "Military","college")
+math_Military_AnSamp2_age_d24_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "Military","Age_d24")
+math_LowSES_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "Pell")
+math_LowSES_AnSamp2_college_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "Pell","college")
+math_LowSES_AnSamp2_age_d24_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "Pell","Age_d24")
+math_Ethnicity_AnSamp2_tb <- Propensities_CatVar_withMeta(math.items_AnSamp2, "ethnicity")
+math_Ethnicity_AnSamp2_college_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "ethnicity","college")
+math_Ethnicity_AnSamp2_age_d24_tb <-
+  Propensities_TwoVars(math.items_AnSamp2, "ethnicity","Age_d24")
+
+tibble_list_demographicsAnSamp2 <- list(
+  math_Gender_AnSamp2_tb = math_Gender_AnSamp2_tb,
+  math_Gender_AnSamp2_college_tb = math_Gender_AnSamp2_college_tb,
+  math_Gender_AnSamp2_age_d24_tb = math_Gender_AnSamp2_age_d24_tb,
+  math_Transfer_AnSamp2_tb  = math_Transfer_AnSamp2_tb,
+  math_Transfer_AnSamp2_college_tb = math_Transfer_AnSamp2_college_tb,
+  math_Transfer_AnSamp2_age_d24_tb = math_Transfer_AnSamp2_age_d24_tb,
+  math_Military_AnSamp2_tb = math_Military_AnSamp2_tb,
+  math_Military_AnSamp2_college_tb = math_Military_AnSamp2_college_tb,
+  math_Military_AnSamp2_age_d24_tb  = math_Military_AnSamp2_age_d24_tb,
+  math_LowSES_AnSamp2_tb = math_LowSES_AnSamp2_tb,
+  math_LowSES_AnSamp2_college_tb = math_LowSES_AnSamp2_college_tb,
+  math_LowSES_AnSamp2_age_d24_tb = math_LowSES_AnSamp2_age_d24_tb,
+  math_Age_d24_AnSamp2_tb = math_Age_d24_AnSamp2_tb,
+  math_Age_d24_AnSamp2_college_tb = math_Age_d24_AnSamp2_college_tb
+)
+
+generate_pdf_Frequencies_woTitles (tibble_list_demographicsAnSamp2, 
+      "DAACS Math, Demographics, UMGC1 and UA2 Analytic Sample 2.pdf", 
+                  tables_per_page = 9, title = 
+      "DAACS Math, Demographics, UMGC1 and UA2, Analytic Sample 2, n = 1570")
+
+```  
+
+# Save all data in one file
+```{r}
+#save.image("D:/Dropbox/DAACS-Validity/Analyses/Math/Math_dataClean-umgc1ua2_4.RData")
+save.image("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/math/Math_dataClean-umgc1ua2_4.RData")
+```
+
+Chat GPT's advise to address the warnings resulted in more warnings:
+The warnings you're seeing ("fitted probabilities numerically 0 or 1 occurred" 
+and "algorithm did not converge") typically occur in logistic regression when 
+the predictor variable is perfectly separating the outcome or when the model 
+encounters difficulties due to complete or quasi-complete separation. This is 
+more likely to happen in datasets with sparse data, such as DAACS math scores 
+with a high percentage of missing values and a CAT assessment where each 
+student only responded to a subset of items.
+Possible solutions:
+Penalized Logistic Regression: You can use a regularized logistic regression 
+model like ridge regression or lasso to handle perfect separation. The glmnet 
+package in R can help with this.
+Handling Convergence Issues with Weaker Regularization: You could try using 
+a weaker convergence tolerance or increase the number of iterations for the 
+fitting algorithm. Adjust the control argument in glm().
+
+Excluding Items with Sparse Responses: If certain items have very few valid 
+responses, consider excluding them from the analysis. You can add a threshold 
+to check the number of valid responses for each item and exclude those with 
+fewer than, say, 50 responses.
+See the code here: https://chatgpt.com/share/670459bb-25d8-8005-b0db-5d9838419e68

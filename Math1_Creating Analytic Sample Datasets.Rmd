@@ -1,0 +1,2192 @@
+---
+title: "Creating Analytic Sample Dataframes from IES DAACS Mathematics Assessment (174 items), May 2022 - May 2023, umgc1-and-ua2 Combined Sample, n = 4460"
+author: "Oxana Rosca"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: true
+    toc_depth: 6  
+    reference_docx: "C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/WordDocMarkdownTemplate.docx"
+  html_document:
+    toc: true
+    toc_depth: 6 
+    theme: readable
+---
+
+# Purpose: Data Organization
+The purpose of this document is to organize the data for the DAACS math assessment (174 items) collected between May 2022 and May 2023 from two colleges: UMGC1 and UA2. The data were cleaned and organized into respondent-level and item-level dataframes.
+  1.	Item-level data collected by DAACS (Analytic Sample 1, AnSamp1).
+  2.	Institution-provided respondent data: demographic information (Analytic Sample 2, AnSamp2).
+  Two colleges' dataframes were combined into a single dataframe for further analysis.
+  
+# Assessment:  DAACS Mathematics
+DAACS Math Assessment was designed to measure students' math skills and knowledge, including algebra, geometry, and statistics.The assessment consists of 174 math items from a pool of items (k = 174). Each student completed either 18 items (k_admin_min = 18) or 24 items (k_admin_max = 24) during their first attempt. For the 2022–2023 data collection, we implemented an adaptive multistage testing design, with item difficulty levels assigned by state standards and expert evaluations. The assessment was administered online, and students were allowed to use a calculator and other resources. The assessment was untimed, but the time taken by each respondent was recorded.
+
+# Participants 
+A total of 5447 respondents completed at least one DAACS assessment: 4152 (76.2%) from UMGC1 and 1295 from UA2. All respondents were newly registered undergraduate students: each had both a DAACS-assigned ID (DAACS_ID) and an institution-assigned ID.
+For the math assessment specifically, 4621 students participated : 3869 (83.7%) UMGC1 and 752 UA2.
+
+## Analytic Samples
+Two analytic samples were created for the DAACS math assessment:
+
+### Analytic Sample 1 (AnSamp1), n = 4460
+  Purpose: For IRT analyses.
+  Composition: Includes first-attempt scores from 3713 (83.3%) UMGC1 and 747 (16.7%) UA2 non-speedy respondents.
+  Data: Collected between May 2022 and May 2023, including all non-speedy respondents' math scores from their first attempts.	
+The dataset "math.itemsONLY_AnSamp1" includes 174 items' scores (Q001–Q174) but excludes student IDs and other variables.
+A detailed dataframe "math.items_AnSamp1" includes 194 columns:174 item scores, 2 ID variables,	18 personal variables, such as math total scores, demographic variables (e.g., gender, age, and college [UMGC or UA2]).
+
+### Would-be-sample 2022 (sampW22), n = 2614, Numgc1 = 1887, Nua2 = 727
+Purpose: For Missing Vallues Analyses.
+sampW22 is a subset of Analytic Sample 1: the first-attempt scores from all non-speedy, treatment, umgc1 and UAlbany2 students WHO enrolled in August, 2022 - May, 2023 and completed the DAACS math assessment within first month of their first semester, regardless of whether they have or have no personal data provided by college. These students would be Analytic Sample 2 of this study if all the year-2022 students had personal information provided by the colleges.
+  Data: The dataset "math.items_sampW22" includes all eligible students' data.
+
+### Sample 2022 with Demographics (samp22D), n = 1606; 907 (56.5%) UMGC1 and 699 UA2
+  Composition: A subset of AnSamp1.
+  Criteria: students took the math assessment in 2022, during the first month of the first semester, and had at least one demographic data point ("Age," "gender," "Military," "Pell," or "transfer").
+  Data: The dataset "math.items_samp22D" includes only eligible students' data.
+  
+### Analytic Sample 2 (AnSamp2), n = 1603; 907 (56.3%) UMGC1 and 696 UA2 students
+  Purpose: For DIF and age-group comparisons.
+  Composition: A subset of Sample 22D, including first-attempt scores from all non-speedy treatment students who took the math assessment in 2022, during their first semester, and had non-missing values on five demographic variables: age, gender, SES, transfer, military, data available.
+  Data: The dataset "math.items_AnSamp2" represents this sample.
+
+# R-packages
+```{r}
+library(data.table)
+#library(plyr)
+library(dplyr)
+library(flextable)
+library(ggplot2)
+library(gridExtra)
+library(knitr)
+library(officer)
+library(psych)
+library(summarytools)
+library(tidyverse)
+library(janitor)
+```
+
+# Data 
+Note: Speedy respondents (Took ≤ 180 Seconds for 3 Six-Item Sets out of 30-Set Pool) were included in the original data. 
+```{r}
+## load the umgc matched (m) clean data
+umgc_m_clean <- new.env()
+## load the anonymized (a) UAlbany (ua) clean data
+ua_a_clean<-new.env()
+#load("D:/Dropbox/DAACS-Validity/Analyses/dataPrep/dataClean-UMGC1_matched_alor.RData",envir = umgc_m_clean)
+#load("D:/Dropbox/DAACS-Validity/Analyses/dataPrep/dataClean-UA2_anonymized_alor.RData",envir = ua_a_clean)
+#load("E:/OneDrive - University at Albany - SUNY/My DAACS/dataClean-UMGC1_matched_alor.RData",envir = umgc_m_clean)
+#load("E:/OneDrive - University at Albany - SUNY/My DAACS/dataClean-UA2_anonymized_alor.RData",envir = ua_a_clean)
+load("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/dataClean-UMGC1_matched_alor.RData",envir = umgc_m_clean)
+load("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/dataClean-UA2_anonymized_alor.RData",envir = ua_a_clean)
+```
+
+## UMGC1: Aug 2022 - May 2023 Data-collection (n = 3869). Two IDs per student: 
+DAACS-assigned ID (DAACS_ID) and institution ID (unique_id)
+
+### Data Collected by DAACS
+
+#### 4152 students took at least one DAACS Assessment
+```{r}
+daacs_umgc1 <- umgc_m_clean$daacs_clean
+dim(daacs_umgc1) # 4152
+```
+
+####  3869 students completed DAACS Math assessment in Aug 2022 - May 2023
+```{r} 
+daacs_math_1stAtt_umgc1 <- umgc_m_clean$daacs_clean [
+    !is.na (umgc_m_clean$daacs_clean$math_attempt),]# 3869
+dim(daacs_math_1stAtt_umgc1) # number of the rows and columns
+min(daacs_math_1stAtt_umgc1$mathCompletionDate, na.rm = TRUE)
+max(daacs_math_1stAtt_umgc1$mathCompletionDate, na.rm = TRUE)
+```
+
+#### mathTotal scores Frequency Table from all 3869 umgc1 students in 2022-23
+```{r}
+#library(knitr)
+# Create a frequency table and convert it to a data frame
+table_tmp <- as.data.frame(table(daacs_math_1stAtt_umgc1$mathTotal, useNA = 'always'))
+# Rename the columns
+colnames(table_tmp) <- c("mathTotal_Scores", "Frequency")
+# Convert the mathTotal_Scores column to numeric and round to 2 decimal places
+# Ensure it's character to add "Total" later
+table_tmp$mathTotal_Scores <- as.character(table_tmp$mathTotal_Scores)
+# Convert numeric entries
+numeric_scores_tmp <- suppressWarnings(as.numeric(table_tmp$mathTotal_Scores))
+# Round and update
+table_tmp$mathTotal_Scores[!is.na(numeric_scores_tmp)] <- 
+  round(numeric_scores_tmp, 2)  
+# Add a total row; Add spaces for right-alignment
+total_row_tmp <- data.frame(mathTotal_Scores = sprintf("%20s", "Total"),  
+Frequency = sum(table_tmp$Frequency))
+table_tmp <- rbind(table_tmp, total_row_tmp)
+# Transpose the table
+table_tmp <- t(table_tmp)
+# Convert the transposed table to a data frame for better rendering
+table_tmp <- as.data.frame(table_tmp)
+# Rename the columns for better readability
+colnames(table_tmp) <- table_tmp[1, ]  # Use the first row as column names
+table_tmp <- table_tmp[-1, ]  # Remove the first row
+# Format the transposed table with knitr::kable for display
+mathTotal_umgc1_3869wsp_tb<-kable(
+table_tmp,
+caption = 
+"mathTotal scores among all 2022-23 UMGC students (including the speedy respondents)"
+)
+mathTotal_umgc1_3869wsp_tb 
+```
+
+#### Mapping file: DAACS_ID and institution_ID (n = 4152); All umgc1 students who took at least one DAACS Assesment
+```{r}
+mapping_daacs_umgc1<-umgc_m_clean$umgc.mapping 
+dim(mapping_daacs_umgc1) # 4152
+```
+
+#### Time taken for assessment: total min=27s, min for 100% score=951s, min for 70% score=501s
+27 second is the minimum taken time for Math assessment at UMGC1
+```{r}
+min(daacs_math_1stAtt_umgc1$mathTime, na.rm = T)
+```
+
+951 seconds is the shortest time for a UMGC1 student to get a perfect score
+```{r}
+min(daacs_math_1stAtt_umgc1[daacs_math_1stAtt_umgc1$mathTotal == 1.0,]$mathTime, na.rm = T)
+```
+
+501 seconds is the shortest time for a UMGC1 student to get at least 70%-score
+```{r}
+min(daacs_math_1stAtt_umgc1[daacs_math_1stAtt_umgc1$mathTotal >= .7,]$mathTime, na.rm = T)
+```
+
+##### 83874 items were responded to by 3869 students in Aug2022-May2023
+```{r}
+math.items_long_umgc1 <- 
+  umgc_m_clean$math.items_clean[
+    umgc_m_clean$math.items_clean$unique_id %in% 
+      daacs_math_1stAtt_umgc1$unique_id,] # 83874    
+dim(math.items_long_umgc1)
+
+length(unique(daacs_math_1stAtt_umgc1$unique_id))
+
+sum(is.na(math.items_long_umgc1$score))
+```
+#### Recode all Q157 into Q016 to fix a machine error
+We had to fix a machine error: The item with stem (or prompt) that starts with 
+"Gisselle ...", was coded twice in UMGC1 data, as Q016 and Q157.
+```{r}
+#library(maditr)
+#library(dplyr)
+# Shorten the stems (strings) in "question" variable to 75 characters
+math.items_long_umgc1$question <- substr(math.items_long_umgc1$question, 1, 75)
+# Subset all existing combinations/patterns of items' qid and stems:
+tmp <- math.items_long_umgc1 %>%
+  dplyr::select(question, qid) %>%
+  distinct(question, qid, .keep_all = TRUE) %>%
+  arrange(question)
+# Subset the non-unique values of $question
+non_unique_questions_tmp <- tmp %>%
+  group_by(question) %>%
+  filter(n() > 1) %>%
+  ungroup()
+non_unique_questions_tmp
+```
+
+```{r}
+# Recode all Q157 into Q016
+math.items_long_umgc1 <- math.items_long_umgc1 %>%
+  mutate(qid = if_else(qid == "Q157", "Q016", qid))
+any(math.items_long_umgc1$qid == "Q157")
+```
+##### 82326 items were responded to on the first attempt by 3869 students in Aug2022-May2023
+```{r}
+math.items1stAtt_long_umgc1<-
+              math.items_long_umgc1[which(math.items_long_umgc1$attempt=="1"),]
+dim(math.items1stAtt_long_umgc1)
+```
+
+No Duplicated IDs (more than 1 attempt) in the long data (no more than 24 items per student): k_admin_max = 24 items. Since the math.items is a long-form file with 18 or 24 rows per student (k_admin), to test duplicate IDs, we test whether there were more than 24 rows/items for any st ID:
+
+```{r}
+# No DAACS_IDs with more than 24 rows
+tmp <- math.items1stAtt_long_umgc1 %>%
+  group_by(DAACS_ID) %>%
+  dplyr::summarise(num_rows = n())
+nrow(tmp %>%filter(num_rows > 24))
+# No institution_ID's with more than 24 rows
+tmp <- math.items1stAtt_long_umgc1 %>%
+  group_by(unique_id) %>%
+  dplyr::summarise(num_rows = n())
+nrow(tmp %>%filter(num_rows > 24))
+```
+No  missing values on "attempt", 82326 first-attempt values
+Frequency/Propensity-table function for a single categorical variable
+
+Note:  package plyr interferes with dplyr when using Propensities_CatVar; Hence, attach and detach the plyr for and after every single use of it.
+```{r}
+# check if the plyr package is loaded and then detach it if it is:
+if ("package:plyr" %in% search()) {
+  # Detach 'plyr' if it is loaded
+  detach("package:plyr", unload = TRUE)
+  message("Package 'plyr' was loaded and has been detached.")
+} else {
+  message("Package 'plyr' is not loaded.")
+}
+
+#library(dplyr)
+# Define the function
+Propensities_CatVar <- function(data, variable) {
+  data %>%
+    group_by(!!sym(variable)) %>% # Group by the variable
+    dplyr::summarize(Count = n(), .groups = "drop") %>% # Use dplyr's summarize
+    mutate(
+      Percent = round(Count / sum(Count, na.rm = TRUE) * 100, 2) # Compute percentages
+    ) %>%
+    rename(!!variable := !!sym(variable)) # Rename the column to match the variable name
+}
+# Example usage
+mathUMGC1_Attempt_allResps_tb <- Propensities_CatVar(math.items_long_umgc1, "attempt")
+print(mathUMGC1_Attempt_allResps_tb)
+```
+
+#### Wide form item-level df (Nresponses = 82326, n = 3869)
+Restructure the df into a wide form
+```{r}
+# library (reshape2)
+math.items1stAtt_wide_umgc1_wIDs <- reshape2::dcast(math.items1stAtt_long_umgc1,
+                          unique_id + DAACS_ID ~ qid, value.var = 'score')
+dim(math.items1stAtt_wide_umgc1_wIDs) # 3869  176: k = 174 items, plus two ID variables
+
+# Good quality of the new df:
+
+# No empty rows
+nrow(math.items1stAtt_wide_umgc1_wIDs)-
+  (nrow(math.items1stAtt_wide_umgc1_wIDs[rowSums(is.na(math.items1stAtt_wide_umgc1_wIDs))!=                           ncol(math.items1stAtt_wide_umgc1_wIDs),]))
+
+# No missing values on IDs
+nrow(math.items1stAtt_wide_umgc1_wIDs[is.na(math.items1stAtt_wide_umgc1_wIDs$DAACS_ID),])
+nrow(math.items1stAtt_wide_umgc1_wIDs[is.na(math.items1stAtt_wide_umgc1_wIDs$unique_id),])
+# No duplicate cases on IDs
+table(duplicated(math.items1stAtt_wide_umgc1_wIDs$DAACS_ID),useNA = 'always')
+table(duplicated(math.items1stAtt_wide_umgc1_wIDs$unique_id),useNA = 'always')
+```
+### Data Provided by UMGC;  student-level; Rolling Admissions Aug 2022 - Dec 2022 
+950 students with personal data provided by UMGC completed DAACS Math in Aug2022-May2023 
+ 
+```{r}
+institution_math_umgc1 <- merge(
+    umgc_m_clean$institution_clean,
+    daacs_math_1stAtt_umgc1[, c("unique_id", "mathCompletionDate")],
+    by = "unique_id"
+)
+
+dim(institution_math_umgc1) # 950   
+```
+
+#### Good quality of the new dataframe (n = 950)
+```{r}
+dim(institution_math_umgc1) # 950  28
+
+# No empty rows
+nrow(institution_math_umgc1)-
+  (nrow(institution_math_umgc1[
+    rowSums(is.na(institution_math_umgc1))!=
+                        ncol(institution_math_umgc1),]))
+
+# The institution_IDs were padded with zeroes
+min(institution_math_umgc1$unique_id)
+
+#The DAACS_IDs were adjusted by adding 10000
+min(institution_math_umgc1$DAACS_ID)
+
+# No missing values on IDs
+nrow(institution_math_umgc1[
+  is.na(institution_math_umgc1$DAACS_ID),])
+nrow(institution_math_umgc1[
+  is.na(institution_math_umgc1$unique_id),])
+```
+
+##### 950  students with personal data provided by UMGC enrolled in 2022 and completed the assessment during their first semester. 
+```{r}
+institution_math_umgc1_2022<- subset(
+institution_math_umgc1,
+format(mathCompletionDate, "%Y") == "2022"
+) 
+dim(institution_math_umgc1_2022) # 950 
+min(institution_math_umgc1_2022$mathCompletionDate)
+max(institution_math_umgc1_2022$mathCompletionDate)
+```
+
+## UA2: May2022 - Apr2023 Data-collection (n = 752). Two IDs per student: 
+DAACS-assigned ID (DAACS_ID) and institution ID (fakeID)
+
+###  Data Collected by DAACS
+
+#### 1295 students took at least one DAACS Assessment
+```{r}
+daacs_ua2 <- ua_a_clean$daacs_ua2_clean
+dim(daacs_ua2) # 1295
+```
+
+#### 752 students completed DAACS Math assessment in May2022 - Apr2023 
+```{r}
+daacs_math_1stAtt_ua2 <- 
+  ua_a_clean$daacs_ua2_clean [
+    !is.na (ua_a_clean$daacs_ua2_clean$math_attempt),] # 752
+dim(daacs_math_1stAtt_ua2)
+min(daacs_math_1stAtt_ua2$mathCompletionDate, na.rm = TRUE)
+max(daacs_math_1stAtt_ua2$mathCompletionDate, na.rm = TRUE)
+```
+
+#### mathTotal scores Frequency Table from all 752 students in 2022-23
+```{r}
+# Create a frequency table and convert it to a data frame
+table_tmp <- as.data.frame(table(daacs_math_1stAtt_ua2$mathTotal, useNA = 'always'))
+# Rename the columns
+colnames(table_tmp) <- c("mathTotal_Scores", "Frequency")
+# Convert the mathTotal_Scores column to numeric and round to 2 decimal places
+# Ensure it's character to add "Total" later
+table_tmp$mathTotal_Scores <- as.character(table_tmp$mathTotal_Scores)
+# Convert numeric entries
+numeric_scores_tmp <- suppressWarnings(as.numeric(table_tmp$mathTotal_Scores))
+# Round and update
+table_tmp$mathTotal_Scores[!is.na(numeric_scores_tmp)] <- 
+  round(numeric_scores_tmp, 2)  
+# Add a total row; Add spaces for right-alignment
+total_row_tmp <- data.frame(mathTotal_Scores = sprintf("%20s", "Total"),  
+Frequency = sum(table_tmp$Frequency))
+table_tmp <- rbind(table_tmp, total_row_tmp)
+# Transpose the table
+table_tmp <- t(table_tmp)
+# Convert the transposed table to a data frame for better rendering
+table_tmp <- as.data.frame(table_tmp)
+# Rename the columns for better readability
+colnames(table_tmp) <- table_tmp[1, ]  # Use the first row as column names
+table_tmp <- table_tmp[-1, ]  # Remove the first row
+# Format the transposed table with knitr::kable for display
+mathTotal_ua2_752wsp_tb<-kable(
+table_tmp,
+caption = 
+"mathTotal scores among all 2022-23 UAlbany students (including the speedy respondents)"
+)
+mathTotal_ua2_752wsp_tb
+```
+
+#### Mapping file: DAACS_ID and institution_ID (n = 1295); All ua2 students who took at least one DAACS Assesment
+```{r}
+mapping_daacs_ua2<-ua_a_clean$ua.mapping 
+dim(mapping_daacs_ua2) # 1295 2
+```
+
+#### Time taken for assessment: total min=72s, min for 100% score=708s, min for 70% score=532s # 752
+72 second is the minimum taken time for Math assessment at UA2
+```{r}
+min(daacs_math_1stAtt_ua2$mathTime, na.rm = T)
+```
+
+708 seconds is the shortest time for a UA2 student to get a perfect score
+```{r}
+min(daacs_math_1stAtt_ua2[daacs_math_1stAtt_ua2$mathTotal == 1.0,]$mathTime, na.rm = T)
+```
+
+532 seconds is the shortest time for a UA2 student to get at least 70%-score
+```{r}
+min(daacs_math_1stAtt_ua2[daacs_math_1stAtt_ua2$mathTotal >= .7,]$mathTime, na.rm = T)
+```
+
+##### 16134 items were responded to by 752 UA2 students in May2022-Apr2023
+```{r}  
+math.items_long_ua2 <- 
+  ua_a_clean$math.items_ua2_clean[
+    ua_a_clean$math.items_ua2_clean$fakeID %in% 
+      daacs_math_1stAtt_ua2$fakeID,] 
+
+dim(math.items_long_ua2) # 16134
+length(unique(daacs_math_1stAtt_ua2$fakeID))
+sum(is.na(math.items_long_ua2$score))
+```
+
+```{r}
+# Shorten the stems (strings) in "question" variable to 75 characters
+math.items_long_ua2$question <- substr(math.items_long_ua2$question, 1, 75)
+```
+
+##### 15786 items were responded to on the first attempt by 752 students in May2022-Apr2023
+```{r}
+math.items1stAtt_long_ua2<-
+  math.items_long_ua2[which(math.items_long_ua2$attempt=="1"),]
+dim(math.items1stAtt_long_ua2)
+```
+
+No Duplicated IDs (more than 1 attempt) in UA2 long data
+```{r}
+# No DAACS_IDs with more than 24 rows
+tmp <- math.items1stAtt_long_ua2 %>%
+  group_by(DAACS_ID) %>%
+  dplyr::summarise(num_rows = n())
+nrow(tmp %>%filter(num_rows > 24))
+# No institution_ID's with more than 24 rows
+tmp <- math.items1stAtt_long_ua2 %>%
+  group_by(fakeID) %>%
+  dplyr::summarise(num_rows = n())
+nrow(tmp %>%filter(num_rows > 24))
+```
+
+No Duplicated IDs (more than 1 attempt) in UMGC1 long data (no more than 24 items 
+per student).
+Since the math.items is a wide-form file with 24 rows per student, to test duplicate
+IDs, we test whether there were more than 24 rows/items for any st ID:
+
+```{r}
+# No DAACS_IDs with more than 24 rows
+tmp <- math.items1stAtt_long_ua2 %>%
+  group_by(DAACS_ID) %>%
+  dplyr::summarise(num_rows = n())
+nrow(tmp %>%filter(num_rows > 24))
+# No institution_ID's with more than 24 rows
+tmp <- math.items1stAtt_long_ua2 %>%
+  group_by(fakeID) %>%
+  dplyr::summarise(num_rows = n())
+nrow(tmp %>%filter(num_rows > 24))
+
+# No  missing values on "attempt", 15786 first-attempt values
+mathUA2_Attempt_allResps_tb <- Propensities_CatVar(math.items_long_ua2, "attempt")
+print(mathUA2_Attempt_allResps_tb)
+```
+
+No machine errors in coding QIDs
+```{r}
+# Subset all existing combinations/patterns of items' qid and stems:
+tmp <- math.items_long_ua2 %>%
+  dplyr::select(question, qid) %>%
+  distinct(question, qid, .keep_all = TRUE) %>%
+  arrange(question)
+# Subset the non-unique values of $question
+non_unique_questions_tmp <- tmp %>%
+  group_by(question) %>%
+  filter(n() > 1) %>%
+  ungroup()
+nrow(non_unique_questions_tmp)
+```
+
+#### Wide form item-level df (N_responses = 15786, n = 752)
+Restructure the df into a wide form
+```{r}
+math.items1stAtt_wide_ua2_wIDs <- reshape2::dcast(math.items1stAtt_long_ua2,
+                        fakeID + DAACS_ID ~ qid, value.var = 'score')
+dim(math.items1stAtt_wide_ua2_wIDs) # 752  176: k = 174 items plus two ID variables
+
+# Good quality of the new df:
+
+# No empty rows
+nrow(math.items1stAtt_wide_ua2_wIDs)-
+  (nrow(math.items1stAtt_wide_ua2_wIDs[
+    rowSums(is.na(math.items1stAtt_wide_ua2_wIDs))!= 
+                                  ncol(math.items1stAtt_wide_ua2_wIDs),]))
+# institution_ID were padded with zeroes
+min(math.items1stAtt_wide_ua2_wIDs$fakeID)
+# DAACS_IDs were adjusted by adding 10000
+min(math.items1stAtt_wide_ua2_wIDs$DAACS_ID)
+# No missing values on IDs
+nrow(math.items1stAtt_wide_ua2_wIDs[is.na(math.items1stAtt_wide_ua2_wIDs$DAACS_ID),])
+nrow(math.items1stAtt_wide_ua2_wIDs[is.na(math.items1stAtt_wide_ua2_wIDs$fakeID),])
+#No duplicate cases on IDs
+table(duplicated(math.items1stAtt_wide_ua2_wIDs$DAACS_ID),useNA = 'always')
+table(duplicated(math.items1stAtt_wide_ua2_wIDs$fakeID),useNA = 'always')
+```
+
+###  Data Provided by UAlbany; student-level;  Regular Admissions May 2022 - Dec 2022
+752  students with personal data provided by UAlbany completed DAACS Math in May2022-Apr2023 
+```{r}
+institution_math_ua2  <- merge(
+    ua_a_clean$institution_ua2_clean,
+    daacs_math_1stAtt_ua2[, c("fakeID", "mathCompletionDate")],
+    by = "fakeID") 
+dim(institution_math_ua2) # 1081
+```
+
+#### Good quality of the new dataframe (n = 752)
+```{r}
+dim(institution_math_ua2) # 752  35
+
+# No empty rows
+nrow(institution_math_ua2)-
+  (nrow(institution_math_ua2[
+    rowSums(is.na(institution_math_ua2))!=
+                        ncol(institution_math_ua2),]))
+
+# The institution_IDs were padded with zeroes
+min(institution_math_ua2$fakeID)
+
+#The DAACS_IDs were adjusted by adding 10000
+min(institution_math_ua2$DAACS_ID)
+
+# No missing values on IDs
+nrow(institution_math_ua2[
+  is.na(institution_math_ua2$DAACS_ID),])
+nrow(institution_math_ua2[
+  is.na(institution_math_ua2$fakeID),])
+```
+
+#### 740  students with personal data provided by UAlbany enrolled in 2022 and completed 
+the assessment during their first semester.
+```{r}
+institution_math_ua2_2022<- subset(
+institution_math_ua2,
+format(mathCompletionDate, "%Y") == "2022"
+) 
+dim(institution_math_ua2_2022) # 740 
+min(institution_math_ua2_2022$mathCompletionDate)
+max(institution_math_ua2_2022$mathCompletionDate)
+```
+
+## Combined Data from UMGC1 and UA2: AnSamp1 (n = 4460; Numgc = 3713, Nua = 747)
+
+Add a new variable of institution (i.e., college) before merging the files
+```{r}
+daacs_umgc1$college <- 'UMGC1'
+daacs_ua2$college <- "UA2"
+```
+
+Combine the two DAACS student-level dfs (exclude the university-provided IDs) including the speedy respondents; n =5447, Numgc = 4152 (76.2%), Nua = 1295
+```{r}
+daacs_umgc1ua2<- merge(daacs_umgc1, daacs_ua2, all = TRUE)
+dim(daacs_umgc1ua2)# 5447   
+```
+
+### Uniform students' IDs and "college" variable
+Rename the institution-assigned ID variables
+```{r}
+## Rename the institution-assigned ID variables to a new, common name
+names(daacs_math_1stAtt_umgc1)[
+          names(daacs_math_1stAtt_umgc1)=="unique_id"]<- 
+                                        "institution_ID"
+names(math.items1stAtt_wide_umgc1_wIDs)[
+          names(math.items1stAtt_wide_umgc1_wIDs)=="unique_id"]<- 
+                                        "institution_ID"
+names(institution_math_umgc1_2022)[
+          names(institution_math_umgc1_2022)=="unique_id"]<- 
+                                        "institution_ID"
+names(daacs_math_1stAtt_ua2)[
+          names(daacs_math_1stAtt_ua2)=="fakeID"]<- 
+                                        "institution_ID"
+names(math.items1stAtt_wide_ua2_wIDs)[
+          names(math.items1stAtt_wide_ua2_wIDs)=="fakeID"]<- 
+                                        "institution_ID"
+names(institution_math_ua2_2022)[
+          names(institution_math_ua2_2022)=="fakeID"]<- 
+                                       "institution_ID"
+
+# All IDs are unique: We don't want two students from different colleges to share a single ID in the combined data. There are no common institution_ID values
+tmp <- 
+  intersect(daacs_math_1stAtt_umgc1$institution_ID,
+                  daacs_math_1stAtt_ua2$institution_ID)
+length(tmp)
+
+tmp <- 
+  intersect(math.items1stAtt_wide_umgc1_wIDs$institution_ID,
+                  math.items1stAtt_wide_ua2_wIDs$institution_ID)
+length(tmp)
+
+tmp <- 
+  intersect(institution_math_umgc1$institution_ID,
+                  institution_math_ua2$institution_ID)
+length(tmp)
+
+
+# No common DAACS_ID values
+tmp <- 
+  intersect(daacs_math_1stAtt_umgc1$DAACS_ID,
+                        daacs_math_1stAtt_ua2$DAACS_ID)
+length(tmp)
+
+tmp <- 
+  intersect(math.items1stAtt_wide_umgc1_wIDs$DAACS_ID,
+                        math.items1stAtt_wide_ua2_wIDs$DAACS_ID)
+length(tmp)
+
+tmp <- 
+  intersect(institution_math_umgc1$DAACS_ID,
+                        institution_math_ua2$DAACS_ID)
+length(tmp)
+```
+
+Add a new variable of institution (i.e., college) before merging the files
+```{r}
+daacs_math_1stAtt_umgc1$college <- 'UMGC1'
+math.items1stAtt_wide_umgc1_wIDs$college <- 'UMGC1'
+institution_math_umgc1$college <- 'UMGC1'
+daacs_math_1stAtt_ua2$college <- "UA2"
+math.items1stAtt_wide_ua2_wIDs$college <- "UA2"
+institution_math_ua2$college <- "UA2"
+```
+
+### DAACS student-level data (all Math students n = 4621; 3869 (83.7%) UMGC1 and 752 UA2
+#### Common Columns' Names and Class Match: The Structures are identical
+This check point is formal since DAACS-collected student-level data from two 
+colleges were produced  by a single "DAACS" application; hence, the identical 
+variables, names, and categories.
+```{r}
+# Sort column names in alphabetical Order
+daacs_math_1stAtt_umgc1<-
+  daacs_math_1stAtt_umgc1[, order(colnames(daacs_math_1stAtt_umgc1))]
+daacs_math_1stAtt_ua2<-
+  daacs_math_1stAtt_ua2[, order(colnames(daacs_math_1stAtt_ua2))]
+
+# Compare the columns: all variables match
+# library(janitor)
+tmp <- compare_df_cols(daacs_math_1stAtt_umgc1, daacs_math_1stAtt_ua2)
+tmp
+```
+
+##### Variables' Unique Values Match
+```{r}
+# Function to check unique values
+compair_unique_values_in_columns <- function(df1_tmp, df2_tmp) {
+  common_cols <- intersect(names(df1_tmp), names(df2_tmp))
+
+  unique_values <- do.call(rbind, lapply(common_cols, function(col) {
+    data.frame(
+      Column = col,
+      Unique_df1 = paste(unique(df1_tmp[[col]]), collapse = ", "),
+      Unique_df2 = paste(unique(df2_tmp[[col]]), collapse = ", ")
+    )
+  }))
+
+  unique_values
+}
+# Exclude columns with all values unique
+df1_tmp<-daacs_math_1stAtt_umgc1[
+    , !names(daacs_math_1stAtt_umgc1) %in% 
+  c('DAACS_ID', 'institution_ID', 'mathCompletionDate', 'mathStartDate', 
+    'mathTime', 'mathCompletionDate', 'mathStartDate', 'mathTime', 
+    'srlCompletionDate', 'srlStartDate', 'srlTime', 'srlTotal',
+    'writeCompletionDate', 'writeStartDate', 'writeTime')]
+df2_tmp<-daacs_math_1stAtt_ua2[
+    , !names(daacs_math_1stAtt_ua2) %in% 
+  c('DAACS_ID', 'institution_ID', 'mathCompletionDate', 'mathStartDate', 
+    'mathTime', 'mathCompletionDate', 'mathStartDate', 'mathTime', 
+    'srlCompletionDate', 'srlStartDate', 'srlTime', 'srlTotal',
+    'writeCompletionDate', 'writeStartDate', 'writeTime')]
+
+# unique values match
+unique_values_tmp <- compair_unique_values_in_columns(df1_tmp, df2_tmp)
+print(unique_values_tmp)
+```
+
+#### ALL students, n = 4621; 3869 UMGC1 and 752 UA2, Combined dataset, speedy respondents included (math.items_umgc1ua2) 
+```{r}
+daacs_math_1stAtt_umgc1ua2<-rbind(daacs_math_1stAtt_umgc1,daacs_math_1stAtt_ua2) # 4621
+dim(daacs_math_1stAtt_umgc1ua2)
+# Rename the df with the information for all students who took DAACS math in May 2022-May 2023
+math.items_umgc1ua2 <- daacs_math_1stAtt_umgc1ua2
+math_College_allResps_tb <- Propensities_CatVar(math.items_umgc1ua2, "college")
+print(math_College_allResps_tb)
+```
+##### Remove 163 speedy respondents (156 UMGC1 and 7 UA2 students), who took ≤ 180 seconds for 18 or 24 items (k_admin)
+```{r}
+# nsp = non-speedy respondents
+daacs_math_nsp_umgc1ua2 <- 
+  filter(math.items_umgc1ua2, mathTime > 180) # 4460 (3713;747)
+dim(daacs_math_nsp_umgc1ua2)
+
+math_College_AnSamp1_tb <- Propensities_CatVar(daacs_math_nsp_umgc1ua2, "college")
+print(math_College_AnSamp1_tb)
+```
+
+#### AnSamp1 (all non-speedy respondents)
+n = 4460 (3713;747)
+```{r}
+dim(daacs_math_nsp_umgc1ua2)
+
+# no empty rows
+nrow(daacs_math_nsp_umgc1ua2)-
+  (nrow(daacs_math_nsp_umgc1ua2[rowSums(is.na(daacs_math_nsp_umgc1ua2))!= 
+                                                ncol(daacs_math_nsp_umgc1ua2),]))
+# the institution_ID's were padded with zeroes
+min(daacs_math_nsp_umgc1ua2$institution_ID)
+
+# no missing values on IDs
+nrow(daacs_math_nsp_umgc1ua2[is.na(daacs_math_nsp_umgc1ua2$DAACS_ID),])
+nrow(daacs_math_nsp_umgc1ua2[is.na(daacs_math_nsp_umgc1ua2$institution_ID),])
+
+# no duplicated cases on IDs
+table(duplicated(daacs_math_nsp_umgc1ua2$DAACS_ID),useNA = 'always')
+
+# no missing values in mathTime
+nrow(daacs_math_nsp_umgc1ua2[is.na(daacs_math_nsp_umgc1ua2$mathTime),])
+```
+
+Insert a row index for the AnSamp1 (all non-speedy respondents)
+```{r}
+ daacs_math_nsp_umgc1ua2$row_indexAS1 <- 
+  seq_len(nrow(daacs_math_nsp_umgc1ua2))
+```
+
+##### Completion Time Density plots 
+All non-speedy respondents (AnSamp1)
+```{r}
+# Calculate the number of students
+students_umgc1_tmp <- 
+  nrow(daacs_math_nsp_umgc1ua2[daacs_math_nsp_umgc1ua2$college== "UMGC1",])
+students_ua2_tmp <- 
+  nrow(daacs_math_nsp_umgc1ua2[daacs_math_nsp_umgc1ua2$college== "UA2",])
+
+# Create labels for the legend
+umgc_label_tmp <- paste("UMGC students (n =", students_umgc1_tmp, ")")
+ualbany_label_tmp <- paste("UAlbany students (n =", students_ua2_tmp, ")")
+
+# Create a combined data frame for plotting
+combined_data_tmp <- data.frame(
+  mathCompletionDate = daacs_math_nsp_umgc1ua2$mathCompletionDate,
+  group = factor(c(
+    rep(umgc_label_tmp, students_umgc1_tmp),
+    rep(ualbany_label_tmp, students_ua2_tmp)
+  ), levels = c(umgc_label_tmp, ualbany_label_tmp)) # Ensure correct factor level ordering
+)
+#library(ggplot2)
+# Plot the density plots
+ggplot(combined_data_tmp, aes(x = mathCompletionDate, color = group)) +
+  geom_density(linewidth = 1.2) +
+  scale_color_manual(
+    values = setNames(c("red3", "purple"), c(umgc_label_tmp, ualbany_label_tmp))
+  ) +
+  labs(
+    title = 
+      "Completion Dates for Non-speedy respondents on DAACS Math Assessment in 2022-23",
+    x = "Completion Date",
+    y = "Density",
+    caption = "Sample: Analytic Sample 1, n = 4460",
+    color = NULL
+  ) +
+  theme_minimal() +
+    theme(
+      legend.position = c(0.6, 0.85), 
+      legend.justification = c(0, 1),
+      legend.text = element_text(size = 10),
+      plot.title = element_text(size = 12, face = "bold"),
+      plot.caption = element_text(size = 9, hjust = 0)
+      )
+# Save the plot as a PDF
+ggsave(
+  filename = "mathCompletionDate_AnSamp1_density.pdf", # File name
+    plot = last_plot(),                       # Use the most recent plot
+    device = "pdf",                           # Specify the device as PDF
+    width = 8,                                # Width of the plot in inches
+    height = 6,                               # Height of the plot in inches
+    units = "in",                             # Units for width and height
+    dpi = 300                                 # Resolution of the plot
+)
+```
+
+### DAACS Item-level data: Match Items QIDs
+This check point is formal too but for a different reason: DAACS aplication 
+assigned the QIDs for items in the order that they were offered to the first 
+students of a given college. Hence, a Q001 in umgc1 and Q001 in UAlbany could 
+be the first items of any set of medium difficulty (because every student 
+started with a medium set of items); every consequent set was chosen randomly 
+from a pool of easy, medium, or hard items depending on student's answers.
+That is why, we had to create a mapping file to assign uniform QIDs to each item 
+in both colleges.
+
+```{r}
+#Sort dfs' column names in alphabetical order
+math.items1stAtt_wide_umgc1_wIDs<-
+  math.items1stAtt_wide_umgc1_wIDs[, order(colnames(math.items1stAtt_wide_umgc1_wIDs))
+                              ]
+math.items1stAtt_wide_ua2_wIDs<-
+  math.items1stAtt_wide_ua2_wIDs[, order(colnames(math.items1stAtt_wide_ua2_wIDs))]
+
+tmp <- 
+  compare_df_cols(math.items1stAtt_wide_umgc1_wIDs, math.items1stAtt_wide_ua2_wIDs)
+tmp
+```
+
+#### Mapping file to match Items' QIDs 
+Since the UMGC item pool misses the qid = “Q157” (the item Q016/Q157, “Gisselle …”),
+we used the UA2 math qid’s to create uniform math item qid’s for the two colleges (subsamples).
+```{r}
+# Subset the unique items' characteristics from the original data. The "question" variable represent unique item stems (prompt):
+unique_math.items_umgc1<-
+  math.items1stAtt_long_umgc1[!duplicated(math.items1stAtt_long_umgc1$question),
+                                  c('qid', 'question', 'difficulty', 'domain')]
+dim(unique_math.items_umgc1)
+
+unique_math.items_ua2 <- 
+  math.items1stAtt_long_ua2[!duplicated(math.items1stAtt_long_ua2$question), 
+                                c('qid', 'question', 'difficulty', 'domain')]
+dim(unique_math.items_ua2)
+
+# Combine two sets of unique items into a single set with two columns of qid for 
+# two colleges.
+mapping_unique_math.items_umgc1ua2<-
+  merge(unique_math.items_ua2,unique_math.items_umgc1,
+                                  by = c('question', 'difficulty', 'domain'),
+                                  suffixes = c(".ua2",".umgc1"))
+dim(mapping_unique_math.items_umgc1ua2)
+```
+
+Good quality of the new dataframe (k = 174)
+```{r}
+dim(mapping_unique_math.items_umgc1ua2) # 174 5
+
+# No empty rows
+nrow(mapping_unique_math.items_umgc1ua2)-
+  (nrow(mapping_unique_math.items_umgc1ua2[
+    rowSums(is.na(mapping_unique_math.items_umgc1ua2))!=
+                        ncol(mapping_unique_math.items_umgc1ua2),]))
+```
+
+#### Match the Item-Level wide dfs
+Rename umgc1 QIDs (columns) via mapping file (k = 174 items)
+```{r}
+#library(data.table)
+# Subset 174 qid variables 
+math.items1stAtt_wide_umgc1 <- math.items1stAtt_wide_umgc1_wIDs [, -c(1, 2, 3)]
+
+# Change the umgc1 QIDs to ua2 ones
+math.items1stAtt_wide_umgc1_wua2qid <- setnames(math.items1stAtt_wide_umgc1, 
+              as.character(mapping_unique_math.items_umgc1ua2$qid.umgc1),
+                      as.character(mapping_unique_math.items_umgc1ua2$qid.ua2))
+# Re-attach the renamed variables
+math.items1stAtt_wide_umgc1_wIDs_wua2qid<- 
+  cbind(math.items1stAtt_wide_umgc1_wIDs[,1:3], math.items1stAtt_wide_umgc1_wua2qid)
+# Now ua2 and umgc1 have uniform column names
+```
+
+#### Item-Level wide df for a combined sample, n = 4621; 3869 UMGC1 and 752 UA2
+Merge the Item-Level wide dfs into the a single df for a combined sample 
+of two colleges' students (including the speedy respondents)  
+```{r}
+math.items1stAtt_wide_umgc1_wIDs_wua2qid <- 
+  math.items1stAtt_wide_umgc1_wIDs_wua2qid[, order(colnames(math.items1stAtt_wide_umgc1_wIDs_wua2qid))]
+
+math.items1stAtt_wide_umgc1ua2_wPersonal <- 
+  rbind(math.items1stAtt_wide_umgc1_wIDs_wua2qid, math.items1stAtt_wide_ua2_wIDs)
+dim(math.items1stAtt_wide_umgc1ua2_wPersonal)
+```
+
+##### Good quality of the new dataframe (n = 4621 (3869 (83.7%) UMGC1 and 752 UA2))
+```{r}
+dim(math.items1stAtt_wide_umgc1ua2_wPersonal) # 4621  177
+
+# No empty rows
+nrow(math.items1stAtt_wide_umgc1ua2_wPersonal)-
+  (nrow(math.items1stAtt_wide_umgc1ua2_wPersonal[rowSums(is.na(math.items1stAtt_wide_umgc1ua2_wPersonal))!=
+                        ncol(math.items1stAtt_wide_umgc1ua2_wPersonal),]))
+
+# The institution_IDs were padded with zeroes
+min(math.items1stAtt_wide_umgc1ua2_wPersonal$institution_ID)
+
+#The DAACS_IDs were adjusted by adding 10000
+min(math.items1stAtt_wide_umgc1ua2_wPersonal$DAACS_ID)
+
+# No missing values on IDs
+nrow(math.items1stAtt_wide_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_umgc1ua2_wPersonal$DAACS_ID),])
+nrow(math.items1stAtt_wide_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_umgc1ua2_wPersonal$institution_ID),])
+```
+
+### AnSamp1 
+All 1st-attempt items answered to by all non-speedy respondents), n = 4460 (3713;747).
+Remove 161 speedy respondents (who took ≤ 180 seconds for the assessment) and add 
+the other DAACS variables of interest 
+```{r}
+math.items1stAtt_wide_nsp_umgc1ua2_wPersonal<-
+  merge(math.items1stAtt_wide_umgc1ua2_wPersonal,
+        daacs_math_nsp_umgc1ua2[, c(1, 3:5, 13, 15, 16, 69)])
+dim(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal)
+```
+
+### Good quality of the new dataframe (n = 4460 (3713;747))
+```{r}
+dim(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal) # 4460  182
+
+# No empty rows
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal)-
+  (nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+    rowSums(is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal))!=
+                        ncol(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal),]))
+
+# The institution_IDs were padded with zeroes
+min(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$institution_ID)
+
+#The DAACS_IDs were adjusted by adding 10000
+min(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$DAACS_ID)
+
+# No missing values on IDs
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$DAACS_ID),])
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$institution_ID),])
+
+# No missing values on college
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$college),])
+
+# No missing values in readTime = the students who didn't take read assessment
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$mathTime),])
+# All attempts are 1st
+table(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$math_attempt, 
+      useNA = "always")
+```
+
+## Institution-provided student-level Data (Personal, n = 1702, 950 (55.8%) UMGC1 and 752 UA2), 2022-23
+
+### Match common columns' names
+```{r}
+# Sort the column names in alphabetical order
+institution_math_ua2 <- 
+  institution_math_ua2[, order(colnames(institution_math_ua2))] 
+
+institution_math_umgc1<-
+  institution_math_umgc1[
+    , order(colnames(institution_math_umgc1))] 
+
+# Many common columns' names do not match
+tmp <- 
+  compare_df_cols(institution_math_umgc1, institution_math_ua2)
+tmp
+```
+
+#### Save the comparison table as a word.doc
+```{r}
+#library(flextable)
+#library(officer)
+# Create a function to save the .docx
+save_dftable_as_word <- 
+  function(tmp, target, caption, footer_note = NULL) {
+    doc <- read_docx() %>% # Create a new Word document
+      body_add_par(caption, style = "centered") %>% # Add the caption (non-optional)
+      body_add_flextable(
+        flextable(tmp) %>% # Create a flextable
+          align(align = "center", part = "all") %>% # Center align all values in the columns
+          autofit() # Autofit the column widths
+      )
+    
+    if (!is.null(footer_note)) {
+      doc <- doc %>% body_add_par(footer_note, style = "Normal") # Add the footer note aligned to the left
+    }
+    
+    doc <- doc %>% print(target = target) # Save the Word document
+  }
+
+# Use the function
+save_dftable_as_word(
+  tmp = tmp,
+  target = "institution_math_umgc1_vs_institution_math_ua2_variables.docx", # doc's name
+  caption = "institution_math_umgc1 Structure VS institution_math_ua2 Structure", # Table's title
+  footer_note = "Data: IES 2022-23 UMGC2 and UAlbany1 students" ) # optional footer note
+```
+
+##### Rename the common but non-matching  variables
+```{r}
+# Rename multiple columns in one line
+# UMGC1
+names(institution_math_umgc1)[
+  names(institution_math_umgc1) %in% 
+  c("credits_attempted", "credits_earned","gpa_term","military", "pell")] <- 
+  c("credits_attempted_f22","credits_earned_f22","gpa_term_f22","Military","Pell")
+
+# UA2
+names(institution_math_ua2)[names(institution_math_ua2) %in% 
+                c("credits_passed_f22","DAACSAssignment","Race_Ethnicity.x",
+                  "StudentType","term_gpa_f22","Transfer_credits")] <- 
+                  c("credits_earned_f22","group","ethnicity","transfer", 
+                    "gpa_term_f22","credits_transferred")
+```
+
+Subset 14 common variables from institution_math_ dfs (n = 1702, 950 UMGC1 and 752 UA2)
+```{r}
+institution_math_selectVar_umgc1 <- 
+	institution_math_umgc1[
+	  , intersect(names(institution_math_umgc1), 
+										   names(institution_math_ua2))]
+dim(institution_math_selectVar_umgc1) # 950  15
+
+institution_math_selectVar_ua2 <- 
+	institution_math_ua2[
+	  , intersect(names(institution_math_umgc1), 
+										 names(institution_math_ua2))] 
+dim(institution_math_selectVar_ua2) # 752  15
+```
+
+### Adjust the Unique Values (or categories/levels)
+```{r}
+# Exclude columns with all values unique
+df1_tmp<-institution_math_selectVar_umgc1[
+    , !names(institution_math_selectVar_umgc1) %in%
+  c('DAACS_ID', 'institution_ID', 'mathCompletionDate')]
+df2_tmp<-institution_math_selectVar_ua2[
+    , !names(institution_math_selectVar_ua2) %in%
+  c('DAACS_ID', 'institution_ID', 'mathCompletionDate')]
+
+# Check unique values: Unique values do not match
+unique_values_tmp <- compair_unique_values_in_columns(df1_tmp, df2_tmp)
+print(unique_values_tmp)
+```
+
+#### Recode both Military variables
+##### Military n by college
+```{r}
+mathUMGC1_Military_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_umgc1, "Military")
+print(mathUMGC1_Military_samp22D_tb )
+```
+
+Asign Active Duty umgc1 students to Military
+```{r}
+institution_math_selectVar_umgc1 <- 
+  institution_math_selectVar_umgc1 %>%
+    mutate(Military = case_when(
+      Military %in% c("Civilian", "Dependent Child", "DOD Employee", "Guard", 
+                      "Spouse", "Separated", "Not Military", "Other", "Reserve") ~ "No",
+       Military %in% c("Active Duty", "Retired")  ~ "Yes",
+      TRUE ~ Military  # Retain original value if none of the above matches
+    ))
+mathUMGC1_Military_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_umgc1, "Military")
+print(mathUMGC1_Military_samp22D_tb )
+```
+
+The data from UA2 "Military" students were not specified about active-retired-veteran status.
+```{r}
+mathUA2_Military_samp22D_tb <- 
+  Propensities_CatVar(institution_math_selectVar_ua2, "Military")
+print(mathUA2_Military_samp22D_tb)
+```
+
+Recode "1" values into NA's
+```{r}
+institution_math_selectVar_ua2 <- 
+  institution_math_selectVar_ua2 %>%
+    mutate(Military = case_when(
+        Military == 0 ~ "No",      # Recode 0 to "No"
+        Military == 1 ~ NA_character_, # Recode 1 to actual NA
+        TRUE ~ as.character(Military) # Retain any existing NA or other values
+    ))
+mathUA2_Military_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_ua2, "Military")
+print(mathUA2_Military_samp22D_tb)
+```
+
+#### Recode both Ethnicity variables
+##### Ethnicity n by college
+```{r}
+mathUMGC1_Ethnicity_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_umgc1, "ethnicity")
+print(mathUMGC1_Ethnicity_samp22D_tb)
+```
+
+```{r}
+mathUA2_Ethnicity_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_ua2, "ethnicity")
+print(mathUA2_Ethnicity_samp22D_tb)
+```
+
+Recode ua2 ethnicity to match across two dfs
+
+```{r}
+institution_math_selectVar_ua2 <- 
+  institution_math_selectVar_ua2 %>%
+    mutate(ethnicity = case_when(
+      ethnicity == "Black or African-American, non-Hispanic" ~ "Black or African American",
+      ethnicity == "Native Hawaiian or Other Pacific Islander, non-Hispanic" ~ 
+        "Native Hawaiian or Other Pacific Islander",
+      ethnicity == "Race/Ethnicity Unknown" ~ NA_character_,  # Assign NA to unknown ethnicity
+      ethnicity == "Two or More Races, non-Hispanic" ~ "Two or more races",
+      ethnicity == "White, non-Hispanic" ~ "White",
+      ethnicity == "Non-Resident Alien" ~ "Nonresident Alien",
+      ethnicity == "Asian, non-Hispanic" ~ "Asian",
+      TRUE ~ ethnicity  # Retain original value if none of the above matches
+    ))
+# Recoded values
+mathUA2_Ethnicity_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_ua2, "ethnicity")
+print(mathUA2_Ethnicity_samp22D_tb)
+```
+
+Recode umgc1 ethnicity for "unknown" category
+
+```{r}
+institution_math_selectVar_umgc1 <- 
+  institution_math_selectVar_umgc1 %>%
+    mutate(ethnicity = case_when(
+      ethnicity == "Race and ethnicity unknown" ~ NA_character_,  # Assign NA to unknown ethnicity
+      TRUE ~ ethnicity  # Retain original value if none of the above matches
+    ))
+# Recoded values
+mathUMGC1_Ethnicity_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_ua2, "ethnicity")
+print(mathUA2_Ethnicity_samp22D_tb)
+```
+
+#### International st status: 0.8% UMGC1 (8students) 2.5% UA2 (19 students)
+Does variable of "US_citizen.x" represent international students? We don't know.
+Hence, we will use the category Nonresident Alien on the variable of ethnicity  
+as a proxy for international st status.
+For reference: 34 students in UA2 were not US citizens
+
+#### Recode both Gender variables
+##### Ethnicity n by Gender
+```{r}
+mathUMGC1_Gender_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_umgc1, "gender")
+print(mathUMGC1_Gender_samp22D_tb)
+```
+
+Recode "*" values (the students who refused to answer) into NAs
+```{r}
+institution_math_selectVar_umgc1 <- 
+  institution_math_selectVar_umgc1 %>%
+    mutate(gender = case_when(
+      gender == "*" ~ NA_character_,  # Replace "*" with NA
+      TRUE ~ gender  # Retain original value if no match
+    ))
+
+mathUA2_Gender_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_ua2, "gender")
+print(mathUA2_Gender_samp22D_tb)
+``` 
+
+Recode ua2 gender to match across two dfs
+```{r}
+institution_math_selectVar_ua2 <- 
+  institution_math_selectVar_ua2 %>%
+  mutate(gender = case_when(gender == "M" ~ "Male",
+          gender == "F" ~ "Female",
+          TRUE ~ gender  # Retain original value if none of the above matches
+                         ))
+                         
+mathUA2_Gender_samp22D_tb <- Propensities_CatVar(institution_math_selectVar_ua2, "gender")
+print(mathUA2_Gender_samp22D_tb)
+```
+
+#### Recode ua2 Transfer variable
+Transfer
+```{r}
+institution_math_selectVar_ua2 <- 
+  institution_math_selectVar_ua2 %>%
+  mutate(transfer = case_when(transfer == "First-Year" ~ "No",
+          transfer == "Transfer" ~ "Yes",
+          TRUE ~ transfer  # Retain original value if none of the above matches
+                         ))
+
+# Check if 'plyr' is loaded in the library
+if ("package:plyr" %in% search()) {
+  # Detach 'plyr' if it is loaded
+  detach("package:plyr", unload = TRUE)
+  message("Package 'plyr' was loaded and has been detached.")
+} else {
+  message("Package 'plyr' is not loaded.")
+}
+mathUA2_Transfer_samp22D_tb <- 
+  Propensities_CatVar(institution_math_selectVar_ua2, "transfer")
+print(mathUA2_Transfer_samp22D_tb)
+```
+
+```{r}
+mathUMGC1_Transfer_samp22D_tb <- 
+  Propensities_CatVar(institution_math_selectVar_umgc1, "transfer")
+print(mathUMGC1_Transfer_samp22D_tb)
+```
+
+
+### Unique Values match and Structures are identical
+```{r}
+unique_values_tmp <- compair_unique_values_in_columns(institution_math_selectVar_umgc1, institution_math_selectVar_ua2)
+print(unique_values_tmp)
+```
+
+#### Column names are in alphabetical order
+```{r}
+# Define the function
+is_alphabetical <- function(data) {
+  if (!is.data.frame(data)) {
+    stop("Input must be a data frame.")
+  }
+  identical(names(data), sort(names(data)))
+}
+
+# Test the dfs
+print(is_alphabetical(institution_math_selectVar_umgc1))
+print(is_alphabetical(institution_math_selectVar_ua2))
+```
+
+### Combine the Dataframes (n = 1702, 950 UMGC1 and 752 UA2)
+```{r}
+institution_math_selectVar_umgc1ua2<-
+        rbind(institution_math_selectVar_umgc1, 
+              institution_math_selectVar_ua2)
+dim(institution_math_selectVar_umgc1ua2)
+```
+
+For regression analysis and many other statistical procedures in R, the categorical independent variables should ideally be factors, not characters.
+As of now, the categorical variables are coded as characters:
+```{r}
+str(institution_math_selectVar_umgc1ua2)
+```
+
+See the unique values in demographic character variables of interest
+```{r}
+str(institution_math_selectVar_umgc1ua2)
+unique(institution_math_selectVar_umgc1ua2$Age_d24)
+unique(institution_math_selectVar_umgc1ua2$transfer)
+unique(institution_math_selectVar_umgc1ua2$Military )
+unique(institution_math_selectVar_umgc1ua2$Pell)
+unique(institution_math_selectVar_umgc1ua2$gender)
+unique(institution_math_selectVar_umgc1ua2$ethnicity)
+```
+
+Convert Categorical Variables into Factors and adjust the characteristics of the "reference" group
+The characteristics of the "reference" group (to whom all other groups will be compared) are the first categories (level) of each factor variable.
+The reference group is the group that is not explicitly included in the model. It is the group to which all other groups are compared.
+Note: Ethnicity missing values are coded as a "Missing" group
+```{r}
+institution_math_selectVar_umgc1ua2$Age_d24 <- factor(institution_math_selectVar_umgc1ua2$Age_d24, levels = c("TCAUS", "AUS"))
+institution_math_selectVar_umgc1ua2$transfer <- factor(institution_math_selectVar_umgc1ua2$transfer, levels = c("No", "Yes"))
+institution_math_selectVar_umgc1ua2$Military <- factor(institution_math_selectVar_umgc1ua2$Military, levels = c("No", "Yes"))
+institution_math_selectVar_umgc1ua2$Pell <- factor(institution_math_selectVar_umgc1ua2$Pell, levels = c("N", "Y"))
+institution_math_selectVar_umgc1ua2$gender <- factor(institution_math_selectVar_umgc1ua2$gender, levels = c("Male", "Female"))
+institution_math_selectVar_umgc1ua2$ethnicity <- factor(
+  ifelse(is.na(institution_math_selectVar_umgc1ua2$ethnicity), "Missing", as.character(institution_math_selectVar_umgc1ua2$ethnicity)),
+  levels = c("White", "Asian", "Black or African American", "Hispanic/Latino", 
+             "Two or more races", "Native Hawaiian or Other Pacific Islander", 
+             "American Indian or Alaska Native", "Nonresident Alien", "Missing"))
+
+```
+
+# AnSamp1 dataframe: Add institution-provided personal data 
+```{r}
+math.items1stAtt_wide_nsp_umgc1ua2_wPersonal <-
+  merge(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal, 
+        institution_math_selectVar_umgc1ua2, all.x = T)
+```
+
+### Add demographic information to math.items_umgc1ua2
+```{r}
+math.items_umgc1ua2 <-
+  merge(math.items_umgc1ua2, institution_math_selectVar_umgc1ua2, all.x = TRUE)
+#Move the new variables to the beginning of the df
+math.items_umgc1ua2 <- 
+  math.items_umgc1ua2[,c(1:3, 68:80, 4:67)]
+```
+
+Reorder the columns of AnSamp1
+```{r}
+#Sort column names in alphabetical order
+math.items1stAtt_wide_nsp_umgc1ua2_wPersonal<-
+  math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[, order(colnames(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal))]
+
+math.items1stAtt_wide_nsp_umgc1ua2_wPersonal<-
+  math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[,c(1:18, 193, 194, 19:192)]
+```
+
+## Good quality of AnSamp1 dataframe (n = 4460 (3713;747))
+```{r}
+dim(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal) # 4460  194
+
+# No empty rows
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal)-
+  (nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+    rowSums(is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal))!=
+                       ncol(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal),]))
+
+# The institution_IDs were padded with zeroes
+min(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$institution_ID)
+
+#The DAACS_IDs were adjusted by adding 10000
+min(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$DAACS_ID)
+
+# No missing values on IDs
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$DAACS_ID),])
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$institution_ID),])
+
+# No missing values on college
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$college),])
+
+# No missing values in mathTime = the students who didn't take math assessment
+nrow(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal[
+  is.na(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$mathTime),])
+# All attempts are 1st
+table(math.items1stAtt_wide_nsp_umgc1ua2_wPersonal$math_attempt, 
+      useNA = "always")
+```
+
+## Shorten the name of the main df for Analytic Sample 1
+```{r}
+math.items_AnSamp1 <- math.items1stAtt_wide_nsp_umgc1ua2_wPersonal
+
+# Good quality of the new dataframe
+# No empty rows
+nrow(math.items_AnSamp1)-
+  (nrow(math.items_AnSamp1[rowSums(is.na(math.items_AnSamp1))!=                           
+                             ncol(math.items_AnSamp1),]))
+# No missing values on IDs
+nrow(math.items_AnSamp1[
+  is.na(math.items_AnSamp1$DAACS_ID),])
+nrow(math.items_AnSamp1[
+  is.na(math.items_AnSamp1$institution_ID),])
+
+# No missing values on college
+nrow(math.items_AnSamp1[
+  is.na(math.items_AnSamp1$college),])
+
+# No missing values in mathTime = the students who didn't take math assessment
+nrow(math.items_AnSamp1[
+  is.na(math.items_AnSamp1$mathTime),])
+```
+
+## Math Total Scores, AnSamp1
+n = 4460 (3713;747)
+```{r}
+# 32 total scores' distribution
+math_MathTotal_AnSamp1_tb <- Propensities_CatVar(math.items_AnSamp1, "mathTotal")
+print(math_MathTotal_AnSamp1_tb)
+```
+
+### Density Plots
+
+#### mathTotal n by college: UMGC  (n = 3713. 16.8%) and UA (n = 747, 83.2)
+```{r}
+# Present the number of students in each college
+math_College_AnSamp1_tb <- 
+  Propensities_CatVar(math.items_AnSamp1, "college")
+print(math_College_AnSamp1_tb)
+```
+
+Save the number of students in each college
+```{r}
+college_counts_tmp <- 
+  table(math.items_AnSamp1$college, useNA = "always")
+```
+
+#### mathTotal (mean) by college: UMGC1 = 0.544, UA2	= 0.719
+```{r}
+# Extract the counts for UMGC1 and UA2
+umgc1_count_tmp <- college_counts_tmp["UMGC1"]
+ua2_count_tmp <- college_counts_tmp["UA2"]
+# summary data
+library(plyr)
+mumath_college_tmp <- ddply(
+  math.items_AnSamp1, 
+  "college", 
+  summarise,
+  grp.mean = mean(mathTotal, na.rm = TRUE),
+  label.pos = max(math.items_AnSamp1$mathTotal, na.rm = TRUE) * 0.97
+)
+detach("package:plyr", unload = TRUE)
+mumath_college_tmp
+```
+
+```{r}
+# Create a new column for custom labels
+mumath_college_tmp$custom_label_tmp <- sprintf("mu%s = %.2f", gsub("[0-9]", "", 
+            mumath_college_tmp$college), mumath_college_tmp$grp.mean)
+
+# Density plot
+mathTotal_college_AnSamp1_density <- ggplot(math.items_AnSamp1, 
+                                                 aes(x = mathTotal)) +
+  geom_density(aes(group = college, fill = college), alpha = 0.3) +
+  geom_density(aes(group = college, color = college, linetype = college), 
+               linewidth = 1, alpha = 0) +
+  scale_fill_manual(values = c("purple", "black"), name = "College") +
+  scale_color_manual(values = c("yellow", "red"), guide = "none") +
+  scale_linetype_manual(values = c("dashed", "solid"), name = "College") +
+  geom_vline(aes(xintercept = grp.mean, linetype = college), 
+             data = mumath_college_tmp, 
+             color = "darkgrey", 
+             linewidth = 1) +
+  geom_text(aes(x = grp.mean + ifelse(college == "UA2", -0.04, 0.04), 
+                y = label.pos, label = custom_label_tmp), 
+            data = mumath_college_tmp,
+            vjust = 0, angle = 30, size = 3, color = "black") +
+  theme_minimal() +
+  labs(
+    title = sprintf(
+      "Density Plots. Total Math Scores of UMGC (n = %d) and UAlbany (n = %d) nsp students", 
+      umgc1_count_tmp, ua2_count_tmp
+    ),
+    y = "Density",
+    caption = "Sample: Analytic Sample 1"
+  ) +
+  theme(
+    legend.position = c(0.1, 0.90), 
+    legend.justification = c(0, 1),
+    plot.title = element_text(size = 10, face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0)
+  )
+# Display the plot
+mathTotal_college_AnSamp1_density
+
+# Save the plot
+ggsave("mathTotal_college_AnSamp1_density.pdf", 
+       plot = mathTotal_college_AnSamp1_density, width = 8, height = 6)
+```
+
+#### mathTotal n by age-group: TCAUS  (< 24 y.o. ) and AUS (≥ 24), aka AnSamp2 dataframe
+##### 908 (24.5%) UMGC1 nsp students and 709 (94.9%) UA2 nsp students have age data
+```{r}
+#Use the filtered data for plotting
+math.items1stAtt_wide_nsp_umgc1ua2_wAge <- math.items_AnSamp1 %>% 
+  filter(!is.na(Age_d24)) # 1617
+
+# Subset 
+math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge <- 
+  subset(math.items1stAtt_wide_nsp_umgc1ua2_wAge, 
+          (college == "UA2" & (group == "Treatment" | is.na(group)) |
+          (college == "UMGC1" & (group == "Treatment" | is.na(group)))))
+
+
+# Count the number of students in each Age_d24 category in each college
+## for the Density plotting
+table_tmp <- table(math.items_AnSamp1$Age_d24,
+       math.items_AnSamp1$college, useNA = "always" )
+table_tmp 
+
+## for the report of frequency tables
+
+math_Age_d24_AnSamp1_tb <- 
+  Propensities_CatVar(math.items_AnSamp1, "Age_d24")
+print(math_Age_d24_AnSamp1_tb)
+```
+
+#### mathTotal (mean) by age-group: AUS (n = 646) = 0.53.6, TCAUS	(n = 970) = 0.68 
+```{r}
+# Extract the counts for TCAUS and AUS
+tcaus_count_tmp <- sum(table_tmp["TCAUS", ], na.rm = TRUE)
+aus_count_tmp <- sum(table_tmp["AUS", ], na.rm = TRUE)
+
+tcaus_count_tmp
+aus_count_tmp
+
+# summary data
+library(plyr)
+mumath_age_tmp <- ddply(
+  math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge, 
+  "Age_d24", 
+  summarise,
+  grp.mean = mean(mathTotal, na.rm = TRUE),
+  label.pos = max(
+    math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge$mathTotal, na.rm = TRUE) * 0.97
+)
+detach("package:plyr", unload = TRUE)
+mumath_age_tmp
+```
+
+```{r}
+# Adjust label positions to avoid overlap
+mumath_age_tmp$label.pos <- ifelse(
+  mumath_age_tmp$Age_d24 == "AUS", 
+  mumath_age_tmp$label.pos - 0.06, 
+  mumath_age_tmp$label.pos + 0.06
+)
+
+# Create a new column for custom labels
+mumath_age_tmp$custom_label_tmp <- sprintf("mu%s = %.2f", gsub("[0-9]", "", mumath_age_tmp$Age_d24), mumath_age_tmp$grp.mean)
+
+# Density plot
+mathTotal_Age_umgc1ua2_density <- ggplot(math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge, aes(x = mathTotal)) +
+  geom_density(aes(group = Age_d24, fill = Age_d24), alpha = 0.3) +
+  geom_density(aes(group = Age_d24, color = Age_d24, linetype = Age_d24), 
+               linewidth = 1, alpha = 0) +
+  scale_fill_manual(values = c("skyblue", "lightcoral"), name = "Age_d24") +
+  scale_color_manual(values = c("blue", "red"), guide = "none") +
+  scale_linetype_manual(values = c("solid", "dashed"), name = "Age_d24") +
+  geom_vline(aes(xintercept = grp.mean, linetype = Age_d24), 
+             data = mumath_age_tmp, 
+             color = "darkgrey", 
+             linewidth = 1) +
+  geom_text(aes(x = grp.mean + ifelse(Age_d24 == "TCAUS", -0.02, 0.02), 
+                y = label.pos, label = custom_label_tmp), 
+            data = mumath_age_tmp, 
+            color = "darkblue", vjust = 0, angle = 30, size = 2.5) + 
+  theme_minimal() +
+  labs(
+    title = sprintf(
+      "Density Plots. Total Math Scores of TCAUS (n = %d) and AUS (n = %d) students", 
+      tcaus_count_tmp, aus_count_tmp
+    ),
+    y = "Density",
+    caption = "Sample: n = 1617, all non-speedy respondents with age data"
+  ) +
+  theme(legend.position = c(0.1, 0.90), 
+        legend.justification = c(0, 1),
+        plot.caption = element_text(size = 9, hjust = 0))
+# Display the plot
+mathTotal_Age_umgc1ua2_density
+
+# Save the plot
+ggsave("mathTotal_age_nsp_umgc1ua2_density.pdf", 
+       plot = mathTotal_Age_umgc1ua2_density, width = 8, height = 6)
+```
+
+## Items-only dataframe for AnSamp1 is an IRT requirement to run the loops n = 4460
+This df has only item scores (k = 174 items); All other (even IDs) variables should be removed. 
+from the dfs.
+Remove the students' IDs, age, college, index, and other non-qid variables from AnSamp1
+```{r}
+math.itemsONLY_AnSamp1 <-  math.items_AnSamp1[, 21:194]
+dim(math.itemsONLY_AnSamp1) # 4460  174
+```
+
+### 174 Math Items' Descriptive Statistics
+```{r}
+#library(psych)
+math.itemsONLY_AnSamp1.describe <- describe(math.itemsONLY_AnSamp1)
+
+math.itemsONLY_AnSamp1_umgc1.describe <-
+  describe(math.items_AnSamp1[math.items_AnSamp1$college == "UMGC1", 21:194])
+math.itemsONLY_AnSamp1_ua2.describe<-
+  describe(math.items_AnSamp1[math.items_AnSamp1$college == "UA2", 21:194])
+
+# Save the descriptive statistics for 174 Items
+write.csv(math.itemsONLY_AnSamp1_umgc1.describe,
+          "math.itemsONLY_AnSamp1_umgc1.describe.csv",
+          quote=F, row.names=T)
+write.csv(math.itemsONLY_AnSamp1_ua2.describe,
+          "math.itemsONLY_AnSamp1_ua2.describe.csv",
+          quote=F, row.names=T)
+write.csv(math.itemsONLY_AnSamp1.describe,
+          "math.itemsONLY_AnSamp1.describe.csv",quote=F, row.names=T)
+```
+
+#### Analytic Sample 1
+n = 4460
+
+```{r}
+# library(dplyr)
+# library(summarytools)
+
+# Function to generate and display summary table
+var_selection_tmp <- names(math.items_AnSamp1)[21:194]
+
+variablesSummary <- function(data, title) {
+  selected_data <- data %>%
+    select(any_of(var_selection_tmp)) %>%  # Avoid errors if some variables are missing
+    mutate(across(where(is.character), as.factor)) # Convert character variables if needed
+  
+  # Generate the summary table
+  summary_table <- dfSummary(selected_data, round.digits = 2)
+  
+  # Display the summary in the Viewer pane
+  view(summary_table)
+  
+  # Render the summary in the Markdown pane
+  print(summary_table, method = "render")
+}
+
+# Generate the items summary for Analytic Sample 1
+variablesSummary(math.items_AnSamp1, "MathItems174_Analytic_Sample1_SummaryTable")
+```
+
+##### UMGC1 (n = 3713)
+```{r}
+variablesSummary(
+  math.items_AnSamp1 %>%
+    filter(college == "UMGC1"),
+  "MathItems174_UMGC1_SummaryTable"
+)
+```
+
+##### UA2 (n = 747)
+```{r}
+variablesSummary(
+  math.items_AnSamp1 %>%
+    filter(college == "UA2"),
+  "MathItems174_UA2_SummaryTable"
+)
+```
+
+##### TCAUS (Traditional College-age students, n = 970)
+```{r}
+variablesSummary(
+  math.items_AnSamp1 %>%
+    filter(Age_d24 == "TCAUS"), 
+  "MathItems174_TCAUS_SummaryTable"
+)
+```
+
+##### AUS (Adult students, n = 647)
+```{r}
+variablesSummary(
+  math.items_AnSamp1 %>%
+    filter(Age_d24 == "AUS"),
+  "MathItems174_AUS_SummaryTable"
+)
+```
+
+
+### Completion Time Density plots for treatment nsp students with personal data (incl.
+3 female UA2 students in January 2023)
+```{r}
+# Calculate the number of students
+students_umgc1_tmp <- nrow(institution_math_selectVar_umgc1)
+students_ua2_tmp <- nrow(institution_math_selectVar_ua2)
+
+# Create labels for the legend
+umgc_label_tmp <- paste("UMGC students (n =", students_umgc1_tmp, ")")
+ualbany_label_tmp <- paste("UAlbany students (n =", students_ua2_tmp, ")")
+
+# Create a combined data frame for plotting
+combined_data_tmp <- data.frame(
+  mathCompletionDate = 
+    c(institution_math_selectVar_umgc1$mathCompletionDate, 
+      institution_math_selectVar_ua2$mathCompletionDate),
+  group = factor(c(rep(umgc_label_tmp, students_umgc1_tmp),
+    rep(ualbany_label_tmp, students_ua2_tmp)
+  ),levels = c(umgc_label_tmp, ualbany_label_tmp)) # Ensure correct factor level ordering
+)
+
+# Plot the density plots
+ggplot(combined_data_tmp, aes(x = mathCompletionDate, color = group)) +
+  geom_density(linewidth = 1.2) +
+  scale_color_manual(
+    values = setNames(c("red3", "purple"), c(umgc_label_tmp, ualbany_label_tmp))
+  ) +
+  labs(
+    title = "Completion Dates for non-speedy respondents on DAACS Math Assessment in 2022, UMGC and UA",
+    x = "Completion Date",
+    y = "Density",
+    color = NULL,
+    caption = "Sample: n = 1702"
+  ) +
+    theme_minimal()+
+  theme(legend.position = c(0.7, 0.85), 
+    legend.justification = c(0, 1),
+     plot.title = element_text(size = 12, face = "bold"),
+    plot.caption = element_text(size = 9, hjust = 0))
+# Save the plot as a PDF
+ggsave(
+  filename = "mathCompletionDate_2022umgc1ua2nsp_density.pdf", 
+  plot = last_plot(),
+  device = "pdf",  width = 8, height = 6,units = "in", dpi = 300)
+```
+
+# samp22D, n = 1606; 907 (56.5%) UMGC1 and 699 UA2
+samp22D are nonspeedy, treatment, 2022, newly-enrolled students, with at least one from five values on demographic data provided by colleges ("Age", "gender", "Military", "Pell", "transfer"). 
+```{r}
+math.items1stAtt_wide_nsp_umgc1ua2_wDemogr <- math.items_AnSamp1 %>% 
+  filter(!is.na(transfer)) # 1620
+# Subset 
+math.items1stAtt_wide_nsp_trt_umgc1ua2_wDemogr <- 
+  subset(math.items1stAtt_wide_nsp_umgc1ua2_wDemogr, 
+          (college == "UA2" & (group == "Treatment" | is.na(group)) |
+          (college == "UMGC1" & (group == "Treatment" | is.na(group))))) # 1610
+
+math.items1stAtt_wide_nsp_trt_umgc1ua2_wDemogr_2022 <- subset(
+  math.items1stAtt_wide_nsp_trt_umgc1ua2_wDemogr,
+format(mathCompletionDate, "%Y") == "2022"
+) # 1606
+
+dim(math.items1stAtt_wide_nsp_trt_umgc1ua2_wDemogr_2022) # 1606  194
+
+# Shorten the name of the main df for samp22D
+math.items_samp22D <- math.items1stAtt_wide_nsp_trt_umgc1ua2_wDemogr_2022
+
+# Good quality of the new dataframe
+# No empty rows
+nrow(math.items_samp22D)-
+  (nrow(math.items_samp22D[rowSums(is.na(math.items_samp22D))!= ncol(math.items_samp22D),]))
+math_College_samp22D_tb <-  Propensities_CatVar(math.items_samp22D, "college")
+print(math_College_samp22D_tb)
+```
+
+# AnSamp2, n = 1603 (nonspeedy, treatment, 2022, newly-enrolled students, with age information provided by colleges) 
+AnSamp2, n = 1603; 907 (56.3%) UMGC1 and 696 UA2; 958 (61%)
+```{r}
+math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge_2022 <- subset(
+  math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge,
+format(mathCompletionDate, "%Y") == "2022"
+) 
+
+dim(math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge_2022) # 1603  194
+
+# Shorten the name of the main df for AnSamp2
+math.items_AnSamp2 <- 
+  math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge_2022
+
+# Good quality of the new dataframe
+# No empty rows
+nrow(math.items_AnSamp2)-
+  (nrow(math.items_AnSamp2[rowSums(is.na(math.items_AnSamp2))!= ncol(math.items_AnSamp2),]))
+# No missing values on IDs
+nrow(math.items_AnSamp2[
+  is.na(math.items_AnSamp2$DAACS_ID),])
+nrow(math.items_AnSamp2[
+  is.na(math.items_AnSamp2$institution_ID),])
+
+# No missing values on college
+nrow(math.items_AnSamp2[
+  is.na(math.items_AnSamp2$college),])
+
+# No missing values in mathTime = the students who didn't take math assessment
+nrow(math.items_AnSamp2[
+  is.na(math.items_AnSamp2$mathTime),])
+
+math_College_AnSamp2_tb <-  Propensities_CatVar(math.items_AnSamp2, "college")
+print(math_College_AnSamp2_tb)
+```
+
+## Descriptives (Demographics)
+math.items_AnSamp2 = math.items1stAtt_wide_nsp_trt_umgc1ua2_wAge_2022
+Find the html files in Temporary Directory: See the path to the temporary 
+directory R is using via tempdir()
+Find all demographic tables in "Math AnSamp and Subsamples  Demographic 
+Tables.doc"
+The "Duplicates" line in the Data Frame Summary indicates the number of  
+duplicate in the dataset: where all values across all columns are identical 
+to another row in the dataset.
+
+
+### 958 TCAUS and 645 AUS
+```{r}
+# Define variables for selection
+var_selection_tmp <- c("Age", "college", "ethnicity", "gender", "Military", "Pell", "transfer")
+
+# Generate the summary for the total Analytic Sample 2
+variablesSummary(math.items_AnSamp2, "Demographics_AnSamp2")
+
+math_Age_d24_AnSamp2_tb <- Propensities_CatVar(math.items_AnSamp2, "Age_d24")
+print(math_Age_d24_AnSamp2_tb)
+```
+
+#### UMGC1 (n = 907)
+```{r}
+variablesSummary(
+  math.items_AnSamp2 %>%
+    filter(college == "UMGC1"),
+  "Demographics_AnSamp2_UMGC1"
+)
+```
+
+#### UA2  (n = 696)
+```{r}
+variablesSummary(
+  math.items_AnSamp2 %>%
+    filter(college == "UA2"),
+  "Demographics_AnSamp2_UA2"
+)
+```
+
+#### TCAUS (Traditional College-age students, n = 958)
+```{r}
+variablesSummary(
+  math.items_AnSamp2 %>%
+    filter(Age_d24 == "TCAUS"), 
+  "Demographics_AnSamp2_TCAUS"
+)
+```
+
+#### AUS (Adult students, n = 645)
+```{r}
+variablesSummary(
+  math.items_AnSamp2 %>%
+    filter(Age_d24 == "AUS"),
+  "Demographics_AnSamp2_AUS"
+)
+```
+
+
+# Save all Frequency-propencity Tables in a pdf file
+
+A Function to create a frequency/propensity table for two categorical variables, for the combined-sample datasets (the second variable is a grouping variable)
+```{r}
+# Define the function
+Propensities_TwoVars <- function(data, var1, group_var) {
+if (!inherits(data, "data.frame")) {
+stop("Input `data` must be a data frame.")
+}
+# Proceed with calculations
+result <- data %>%
+group_by(!!sym(group_var), !!sym(var1)) %>%
+dplyr::summarize(Count = n(), .groups = "drop") %>%
+mutate(
+Percent = round(Count / sum(Count, na.rm = TRUE) * 100, 2)
+) %>%
+rename(!!var1 := !!sym(var1), !!group_var := !!sym(group_var))
+# Add metadata
+attr(result, "metadata") <- list(
+tibble_name = deparse(substitute(data)),
+variable_names = paste(var1, group_var, sep = ", "),
+n_obs = nrow(data)
+)
+return(result)
+}
+# Example usage
+math_Age_d24_allResps_college_tb <- Propensities_TwoVars(math.items_umgc1ua2, "Age_d24","college"
+)
+print(math_Age_d24_allResps_college_tb)
+```
+
+A function to generate a PDF with frequency/propensity tables
+```{r}
+generate_pdf_Frequencies <- function(tibble_list_tmp, pdf_name, tables_per_page = 9) {
+  pdf(pdf_name, width = 11, height = 8.5)  # Landscape orientation
+  
+  # Filter valid tibbles
+  valid_tibble_list <- tibble_list_tmp[!sapply(tibble_list_tmp, function(tbl) {
+    is.null(tbl) || !inherits(tbl, "data.frame") || is.null(attr(tbl, "metadata"))
+  })]
+  
+  if (length(valid_tibble_list) == 0) {
+    stop("No valid tibbles to render.")
+  }
+  
+  # Split the tibble list into chunks based on tables_per_page
+  tibble_chunks <- 
+    split(valid_tibble_list, ceiling(seq_along(valid_tibble_list) / tables_per_page))
+  
+  for (chunk_index in seq_along(tibble_chunks)) {
+    chunk <- tibble_chunks[[chunk_index]]
+    cat("Rendering chunk", chunk_index, "of", length(tibble_chunks), "\n")
+    table_grobs <- list()
+    
+    for (tibble_name in names(chunk)) {
+      tibble <- chunk[[tibble_name]]
+      metadata <- attr(tibble, "metadata")
+      
+      # Updated title and subtitle format
+      title <- paste0(
+        metadata$tibble_name,  # Use the data name from metadata
+        " n = ", 
+        metadata$n_obs
+      )
+      
+      subtitle <- if (metadata$tibble_name == "math.items_umgc1ua2") {
+        "All DAACS Math Respondents "
+      } else {
+        ""
+      }
+      
+      # Render title grob
+      title_grob <- grid::textGrob(
+        title,
+        x = 0.5,
+        y = 0.2,
+        gp = grid::gpar(fontsize = 10, fontface = "bold")
+      )
+      
+      # Render subtitle grob
+      subtitle_grob <- grid::textGrob(
+        subtitle,
+        x = 0.5,
+        y = 0.1,
+        gp = grid::gpar(fontsize = 9, fontface = "italic", col = "gray40")
+      )
+      
+      # Adjust font size for table content
+      table_theme <- gridExtra::ttheme_default(
+        core = list(fg_params = list(cex = 0.6)),  # Adjust font size for table cells
+        colhead = list(fg_params = list(cex = 0.6))  # Adjust font size for column headers
+      )
+      
+      # Apply the theme to the table
+      table_grob <- gridExtra::tableGrob(tibble, rows = NULL, theme = table_theme)
+      
+      # Combine title, subtitle, and table using arrangeGrob
+      combined_grob <- gridExtra::arrangeGrob(
+        title_grob,
+        subtitle_grob,
+        table_grob,
+        ncol = 1,
+        heights = grid::unit.c(
+          grid::unit(0.3, "cm"),  # Title spacing
+          grid::unit(0.3, "cm"),  # Subtitle spacing
+          grid::unit(1, "npc")
+        )
+      )
+      
+      table_grobs <- append(table_grobs, list(combined_grob))
+    }
+    
+    # Render tables on the page with adjusted layout
+    if (length(table_grobs) > 0) {
+      # Handle the last page separately for better layout
+      if (chunk_index == length(tibble_chunks) && length(table_grobs) < 9) {
+        # Center tables vertically if fewer tables on the last page
+        gridExtra::grid.arrange(
+          grobs = table_grobs,
+          ncol = 3,  # Three tables per row
+          nrow = ceiling(length(table_grobs) / 3),  # Adjust rows for last page
+          heights = grid::unit(rep(1 / ceiling(length(table_grobs) / 3), ceiling(length(table_grobs) / 3)), "npc"),
+          top = grid::textGrob(
+            paste0("Demographics for Math students, UMGC1 and UA2     Page ", 
+                   chunk_index, " of ", length(tibble_chunks)),
+            x = 0.7,
+            gp = grid::gpar(fontsize = 10, fontface = "bold")
+          )
+        )
+      } else {
+        # Regular layout for full pages
+        gridExtra::grid.arrange(
+          grobs = table_grobs,
+          ncol = 3,  # Three tables per row
+          nrow = 3,  # Three rows per page
+          top = grid::textGrob(
+            paste0("Demographics for Math students, UMGC1 and UA2     Page ", 
+                   chunk_index, " of ", length(tibble_chunks)),
+            x = 0.6,
+            gp = grid::gpar(fontsize = 10, fontface = "bold")
+          ),
+          padding = grid::unit(0.2, "cm")  # Reduced padding around tables
+        )
+      }
+      
+      cat("Added a page to the PDF.\n")
+    } else {
+      cat("No tables to render in chunk", chunk_index, "\n")
+    }
+  }
+  
+  dev.off()
+  cat("PDF generation complete.\n")
+}
+
+```
+
+## Across two colleges (UMGC1 and UA2)
+Create and combine all tibbles into a list
+```{r}
+# Fixing the tibble list
+tibble_list_college <- list(
+  math_Attempts_allResps_college_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "mathAttempts",
+    "college"
+  ),
+    math_Attempt_AnSamp1_college_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "math_attempt",
+    "college"
+  ),
+  math_Attempt_samp22D_college_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "math_attempt",
+    "college"
+  ),
+  math_Age_d24_allResps_college_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "Age_d24",
+    "college"
+  ),
+    math_Age_d24_AnSamp1_college_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "Age_d24",
+    "college"
+  ),
+  math_Age_d24_samp22D_college_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "Age_d24",
+    "college"
+  ),
+
+  math_Gender_allResps_college_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "gender",
+    "college"
+  ),
+    math_Gender_AnSamp1_college_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "gender",
+    "college"
+  ),
+  math_Gender_samp22D_college_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "gender",
+    "college"
+  ),
+  math_Transfer_allResps_college_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "transfer",
+    "college"
+  ),
+    math_Transfer_AnSamp1_college_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "transfer",
+    "college"
+  ),
+  math_Transfer_samp22D_college_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "transfer",
+    "college"
+  ),
+  math_Military_allResps_college_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "Military",
+    "college"
+  ),
+    math_Military_AnSamp1_college_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "Military",
+    "college"
+  ),
+  math_Military_samp22D_college_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "Military",
+    "college"
+  ),
+  math_SES_allResps_college_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "Pell",
+    "college"
+  ),
+    math_SES_AnSamp1_college_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "Pell",
+    "college"
+  ),
+  math_SES_samp22D_college_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "Pell",
+    "college"
+  ),  
+  math_Ethnicity_allResps_college_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "ethnicity",
+    "college"
+  ),
+  math_Ethnicity_AnSamp1_college_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "ethnicity",
+    "college"
+  ),
+      math_Ethnicity_samp22D_college_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "ethnicity",
+    "college"
+  )
+)
+
+tibble_list_tmp <-tibble_list_college
+```  
+
+generate pdf
+```{r}
+generate_pdf_Frequencies (tibble_list_tmp, "DAACS Math, Demographics in Two AnSamples and Two Colleges, UMGC1 and UA2.pdf", tables_per_page = 9)
+```
+
+## Across two age-groups (AUS and TCAUS)
+Create and combine all tibbles into a list
+```{r}
+# Fixing the tibble list
+tibble_list_Age_d24 <- list(
+  math_Attempts_allResps_age_d24_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "mathAttempts",
+    "Age_d24"
+  ),
+    math_Attempts_AnSamp1_age_d24_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "math_attempt",
+    "Age_d24"
+  ),
+  math_Attempts_samp22D_age_d24_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "math_attempt",
+    "Age_d24"
+  ),
+  math_College_allResps_age_d24_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "college",
+    "Age_d24"
+  ),
+    math_Age_d24_AnSamp1_age_d24_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "college",
+    "Age_d24"
+  ),
+  math_Age_d24_samp22D_age_d24_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "college",
+    "Age_d24"
+  ),
+
+  math_Gender_allResps_age_d24_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "gender",
+    "Age_d24"
+  ),
+    math_Gender_AnSamp1_age_d24_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "gender",
+    "Age_d24"
+  ),
+  math_Gender_samp22D_age_d24_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "gender",
+    "Age_d24"
+  ),
+  math_Transfer_allResps_age_d24_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "transfer",
+    "Age_d24"
+  ),
+    math_Transfer_AnSamp1_age_d24_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "transfer",
+    "Age_d24"
+  ),
+  math_Transfer_samp22D_age_d24_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "transfer",
+    "Age_d24"
+  ),
+  math_Military_allResps_age_d24_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "Military",
+    "Age_d24"
+  ),
+    math_Military_AnSamp1_age_d24_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "Military",
+    "Age_d24"
+  ),
+  math_Military_samp22D_age_d24_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "Military",
+    "Age_d24"
+  ),
+  math_SES_allResps_age_d24_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "Pell",
+    "Age_d24"
+  ),
+    math_SES_AnSamp1_age_d24_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "Pell",
+    "Age_d24"
+  ),
+  math_SES_samp22D_age_d24_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "Pell",
+    "Age_d24"
+  ),  
+  math_Ethnicity_allResps_age_d24_tb = Propensities_TwoVars(
+    math.items_umgc1ua2,
+    "ethnicity",
+    "Age_d24"
+  ),
+  math_Ethnicity_AnSamp1_age_d24_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "ethnicity",
+    "Age_d24"
+  ),
+      math_Ethnicity_samp22D_age_d24_tb = Propensities_TwoVars(
+    math.items_samp22D,
+    "ethnicity",
+    "Age_d24"
+  )
+)
+
+tibble_list_tmp <-tibble_list_Age_d24
+```  
+
+generate pdf
+```{r}
+generate_pdf_Frequencies (tibble_list_tmp, "DAACS Math, Demographics in Two AnSamples and Two Age-groups, AUS and TCAUS.pdf", tables_per_page = 9)
+```
+
+# Save the entire environment produced by this script
+```{r}
+# save.image(
+#"D:/Dropbox/DAACS-Validity/Analyses/Math/Math_dataClean-UMGC1UA2_1.RData")
+save.image("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/math/Math_dataClean-umgc1ua2_1.RData")
+#save.image("E:/OneDrive - University at Albany - SUNY/My DAACS/math/Math_dataClean-umgc1ua2_1.RData")
+```

@@ -1,0 +1,1251 @@
+---
+title: "Multiple Regression Analysis using Theta-Scores Obtained via 91 Items of IES DAACS Mathematics Assessment (v.2.0), May 2022 - May 2023, umgc1-and-ua2 Combined Sample, AnSamp2 (n = 1570)"
+author: "Oxana Rosca"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: true
+    toc_depth: 6
+    reference_docx: "C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/WordDocMarkdownTemplate.docx"
+  html_document:
+    toc: true
+    toc_depth: 6
+    theme: readable
+---
+
+# Purpose: To test for difference between two age-groups on the theta-scores from the DAACS Math Assessment
+
+# Result: Traditional-age students (TCAUS) outperform adult students (AUS) after controling for demographic variables. This disadvantage varies by ethnicity, transfer, and military status.
+Military students score lower than non-military students, but this disadvantage is weaker among AUS students.
+Female and Pell eligibility do not significantly affect Theta_math91 scores.
+
+# DAACS Math Assessment
+The DAACS Math Assessment consists of 174 math items from a pool of items (k = 174). Each student completed either 18 items (k_admin_min = 18) or 24 items (k_admin_max = 24) during their first attempt. For the 2022–2023 data collection, we implemented an adaptive multistage testing design, with item difficulty levels assigned by state standards and expert evaluations.
+
+# Participants 
+A total of 5447 participants completed at least one DAACS assessment, including 4152 (76%) from UMGC1 and 1295 from UA2. All participants had both a DAACS-assigned ID (DAACS_ID) and an institution-assigned ID.
+For the math assessment specifically, 4621 students participated : 3869 (84%) UMGC1 and 752 UA2. 
+
+# Analytic Sample 2
+
+## Students, n = 1570; 884 (56.3%) UMGC1 and 686 UA2 students
+  Purpose: For DIF and age-group comparisons.
+  Composition: A subset of Sample 22D, including first-attempt scores from all non-speedy treatment students who took the math assessment in 2022, during their first semester, and had non-missing values on five demographic variables: age, gender, SES, transfer, military, data available.
+  Data: The dataset "math.items_AnSamp2" represents this sample.
+  
+## Items  
+91 (good) items that have no DIF on age and have a significant positive correlation with Theta scores  from 174- and 159-ageitem models, according to logistic regression analyses with graphic representations.
+The "good" items (m=91) met the following characteristics:
+  a-parameters between 0.37 and 2.18
+  Standard Errors (SEs) for a-par smaller than 0.72
+  b-parameters between -2.25 and +1.8
+  SEs for b-par smaller than 1.25
+  showed no DIF on the grouping variable of age
+"good" items (m = 91): Q006, Q007, Q009, Q015, Q016, Q018, Q020, Q022, Q024, Q026, Q028, Q029, Q031, Q032, Q034:Q036, Q039, Q042, Q044, Q047, Q049, Q050:Q053, Q055, Q057:Q059, Q062:Q065, Q067, Q069, Q074, Q076, Q078, Q080, Q081, Q085, Q086, Q088, Q090, Q092, Q097, Q098, Q100, Q101, Q102, Q104, Q108:Q111, Q113, Q115, Q118, Q120, Q121, Q124:Q127, Q131, Q133, Q134, Q136, Q138:Q140, Q143, Q145, Q147:Q151, Q154, Q156, Q157, Q159:Q162, Q164, Q166, Q171, Q173, Q174.
+
+# Sources
+http://www.sthda.com/english/wiki/unpaired-two-samples-t-test-in-r
+https://www.datacamp.com/tutorial/multiple-linear-regression-r-tutorial
+https://stacyderuiter.github.io/s245-notes-bookdown/collinearity-and-multicollinearity.html
+
+# R-Packages
+```{r}
+# if(!require(devtools)) install.packages("devtools")
+# devtools::install_github("kassambara/ggpubr")
+library(flextable)
+library("ggpubr")
+library("ggplot2")
+library("goftest")  # Cramer-von Mises test
+library("grid")
+library("gridExtra")
+library("gtsummary")
+library("dplyr")
+library("interactions") # Interaction effects
+library("nortest")  # Anderson-Darling test
+#library("rapportools")
+library("psych")
+library("car")
+library("sandwich")
+library("lmtest")
+
+```
+
+# Data
+```{r}
+#load("~/Dropbox (Hunter College)/DAACS-Validity/Analyses/dataPrep/Math_dataClean-UMGC1UA2_6.RData")
+#load("D:/Dropbox/DAACS-Validity/Analyses/Math/Math_dataClean-UMGC1UA2_6.RData")
+load("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/math/Math_dataClean-umgc1ua2_6.RData")
+```
+
+List the variables of math.items_AnSamp2
+```{r}
+names(math.items_AnSamp2)
+```
+
+## Confirm Categorical Variables are Factors and characteristics of the "reference" group 
+For MLR in R, all categorical independent variables should ideally be factors, not characters.
+The characteristics of the "reference" group (to whom all other groups will be compared) are the first categories (level) of each factor variable.
+The reference group is the group that is not explicitly included in the model. It is the group to which all other groups are compared.
+```{r}
+# See the unique values in demographic character variables of interest
+unique(math.items_AnSamp2$Age_d24)
+unique(math.items_AnSamp2$transfer)
+unique(math.items_AnSamp2$Military )
+unique(math.items_AnSamp2$Pell)
+unique(math.items_AnSamp2$gender)
+unique(math.items_AnSamp2$ethnicity)# Ethnicity missing values are coded as a "Missing" group
+```
+
+## College marginal table for AnSamp 2
+```{r}
+#detach("package:rapportools", unload = TRUE)
+Math_College_AnSamp2_tb <-  Propensities_CatVar(math.items_AnSamp2, "college")
+print(Math_College_AnSamp2_tb)
+```
+
+## College*age contingency table for AnSamp 2
+```{r}
+# library("ggpubr")
+# library("dplyr")
+#A Function to create a frequency/propensity table for two categorical variables, for the combined-sample datasets (the second variable is a grouping variable)
+# Propensities_TwoVars <- function(data, var1, group_var) {
+# if (!inherits(data, "data.frame")) {
+# stop("Input `data` must be a data frame.")
+# }
+# # Proceed with calculations
+# result <- data %>%
+# group_by(!!sym(group_var), !!sym(var1)) %>%
+# dplyr::summarize(Count = n(), .groups = "drop") %>%
+# mutate(
+# Percent = round(Count / sum(Count, na.rm = TRUE) * 100, 2)
+# ) %>%
+# rename(!!var1 := !!sym(var1), !!group_var := !!sym(group_var))
+# # Add metadata
+# attr(result, "metadata") <- list(
+# tibble_name = deparse(substitute(data)),
+# variable_names = paste(var1, group_var, sep = ", "),
+# n_obs = nrow(data)
+# )
+# return(result)
+# }
+# #Example usage
+# math_Age_d24_AnSamp2_college_tb <- Propensities_TwoVars(math.items_AnSamp2, "Age_d24","college"
+# )
+print(math_Age_d24_AnSamp2_college_tb)
+```
+
+## Sample Charachteristics
+```{r}
+# library(gtsummary)
+AnSamp2_Characteristics_tab<-math.items_AnSamp2%>% 
+  select(Theta_math91, gender, transfer, Military, ethnicity, Pell, Age_d24) %>%
+        tbl_summary(
+    statistic = list(all_continuous()  ~ "{mean} ({sd})",
+                     all_categorical() ~ "{n}    ({p}%)"),
+    digits = list(all_continuous()  ~ c(2, 2),
+                  all_categorical() ~ c(0, 1)),
+    type = list(Theta_math91 ~ "continuous",
+                Military ~ "categorical",
+                gender ~ "categorical",
+                transfer ~ "categorical",
+                ethnicity ~ "categorical",
+                Pell ~ "categorical",
+                Age_d24 ~ "categorical"),
+    label  = list(Theta_math91 ~ "MathScore",
+                  Age_d24 ~ "Age",
+                  gender ~ "Gender",
+                  transfer   ~ "Transfer Status",
+                 Military ~ "Military Affiliation",
+                  ethnicity ~ "Ethnicity",
+                  Pell   ~ "Pell Grant Eligibility")
+  ) %>%
+  modify_header(label = "**Variable**") %>%
+  modify_caption("Participant characteristics  (complete case analysis)") %>%
+  bold_labels()
+AnSamp2_Characteristics_tab
+```
+
+### Exporting to an external file
+```{r}
+# library(gtsummary)
+AnSamp2_Characteristics_tab%>% 
+  as_flex_table() %>% 
+  flextable::save_as_docx(path = "AnSamp2_Characteristics_tab.docx")
+
+AnSamp2_Characteristics_tab %>% 
+  as_gt() %>% 
+  gt::gtsave(filename = "AnSamp2_Characteristics_tab.html")
+```
+
+# Independent t-test assumptions are not met
+## Two samples are independent since the samples from UAlbany and UMGC are not related.
+
+## The 91-Theta'ssdata from each of the 2 Age groups do not follow a normal distribution
+The two p-values are smaller than the significance level 0.001 implying that the distribution of the data are significantly different from the normal distribution. In other words, we cannot assume the normality.
+```{r}
+# Shapiro-Wilk normality test for AUS's scores
+MathTheta91aus_normality<-
+with(math.items_AnSamp2,shapiro.test(Theta_math91[Age_d24=="AUS"]))
+# Shapiro-Wilk normality test for TCAUS's scores
+MathTheta91tcaus_normality<-
+with(math.items_AnSamp2, shapiro.test(Theta_math91[Age_d24=="TCAUS"]))
+MathTheta91aus_normality
+MathTheta91tcaus_normality
+```
+Since the data are not normally distributed, it’s recommended to use the 
+non-parametric two-samples Wilcoxon rank test.
+
+## The two populations have different variances too: p-value = 0.016
+F-test to test for homogeneity in variances. 
+```{r}
+MathTheta91byAge_ftest<- 
+  var.test(Theta_math91 ~ Age_d24, data = math.items_AnSamp2)
+MathTheta91byAge_ftest
+```
+The p-value of F-test is smaller than the significance level alpha = 0.05:
+there is significant difference between the variances of the two 
+sets of data. Therefore, we cannot use the classic t-test which assumes equality 
+of the two variances.
+
+# Variables Selection
+
+## Strong relationship between Theta-scores and the variable of age. 
+There is no relationship between Theta-scores and the variables of ethnicity and gender. There is a small relationship between Theta-scores and the variables of Military and Pell (for SES).
+The relationships can be illustrated by scatterplots. A linear relationship between a continuous and dichotomous variable is typically assessed using a "point-biserial correlation"; A positive correlation indicates that, on average, the continuous variable tends to be higher for one category of the dichotomous variable compared to the other. Point-biserial correlation coefficient is a variation of the Pearson correlation coefficient.
+
+### Correlation: Theta-scores correlate with Age, College, and Transfer. Do not correlate with gender and Pell.
+Thetas correlate with Age (P = -.31), College (P = .37), and Transfer (P = -.25) .
+Thetas do not correlate wit gender (P = .00), military (P = -.20), and Pell (P = -.05).
+```{r}
+# library(png)
+# library(psych)
+
+# Generate the pairs plot 
+Theta_math91_samp22D_pairs_plot <- function() {
+  pairs.panels(
+    math.items_samp22D[, c("Theta_math91", "Age_d24", "Age",
+                           "college", "gender", "Military", "Pell", "transfer")],
+    cex.cor = 0.75,      # Font size for correlation coefficients
+    cex.axis = 1.2,      # Font size for diagonal histograms
+    cex.labels = 1.5,    # Font size for axis labels
+    hist.col = "gray",   # Histogram color
+    main = NULL          # No title
+  )
+}
+
+# Save the pairs plot as an image
+png("Theta_math91_samp22D_pairs_plot.png", width = 800, height = 600)
+Theta_math91_samp22D_pairs_plot
+dev.off()
+
+Theta_math91_samp22D_pairs_plot()
+```
+
+#### Correlation Plots
+```{r}
+scatterplot_ageTheta173_AnSamp2 
+scatterplot_collegeTheta173_AnSamp2 
+scatterplot_genderTheta173_AnSamp2 
+scatterplot_militaryTheta173_AnSamp2 
+scatterplot_pellTheta173_AnSamp2 
+scatterplot_transferTheta173_AnSamp2 
+scatterplot_ethnicityTheta173_AnSamp2
+```
+
+##### Ethnicity Correlation Plot, 9 categories, AnSamp2 
+```{r}
+scatterplot_ethnicity9_Theta91_AnSamp2 <- ggplot(data = math.items_AnSamp2, aes(x = Age, y = Theta_math91)) +
+  geom_point() +
+  facet_wrap(~ethnicity, ncol = 2) +
+  theme(legend.position = "bottom") +
+  ggtitle("Theta-scores and 9 Ethnicity Groups")
+scatterplot_ethnicity9_Theta91_AnSamp2
+```
+
+### Boxplots: Mean Theta91 scores in Demographic Groups. Theta-scores correlate with Age, College, and Transfer. Do not correlate with gender, military, and Pell.
+
+#### samp22D
+```{r}
+# library(ggplot2)
+# library(gridExtra)
+# library(ggpubr)
+# library(dplyr)
+# library(grid)
+
+# Define common y-axis limits for consistency
+y_limits_tmp <- range(math.items_samp22D$Theta_math91, na.rm = TRUE)
+
+# Dynamically determine sample size for the title
+sample_size_samp22D <- nrow(math.items_samp22D)
+title_tmp <- paste("Math Theta91 scores Across Demographic Variables, n =", sample_size_samp22D)
+
+# Define ethnicity labels (shortened) and legend
+ethnicity_labels <- c(
+  "All" = "All Ethnicities",
+  "InternSt" = "International Students (Nonresident Alien)",
+  "Asian" = "Asian Americans",
+  "White" = "White Americans",
+  "Multiracial" = "Two or more races",
+  "NativeAm" = "American Indian or Alaska Native",
+  "Hispanic" = "Hispanic/Latino",
+  "Black" = "Black or African American",
+  "PacificIsl" = "Native Hawaiian or Other Pacific Islander",
+  "NA" = "Race and ethnicity unknown"
+)
+
+# Compute correct counts
+ethnicity_counts_tmp <- table(math.items_samp22D$ethnicity, useNA = "always")
+ethnicity_counts_tmp <- c(
+  "All" = nrow(math.items_samp22D),
+  "InternSt" = ethnicity_counts_tmp["Nonresident Alien"],
+  "Asian" = ethnicity_counts_tmp["Asian"],
+  "White" = ethnicity_counts_tmp["White"],
+  "Multiracial" = ethnicity_counts_tmp["Two or more races"],
+  "NativeAm" = ethnicity_counts_tmp["American Indian or Alaska Native"],
+  "Hispanic" = ethnicity_counts_tmp["Hispanic/Latino"],
+  "Black" = ethnicity_counts_tmp["Black or African American"],
+  "PacificIsl" = ethnicity_counts_tmp["Native Hawaiian or Other Pacific Islander"],
+  "NA" = ethnicity_counts_tmp["Missing"])
+
+# Generate legend text with a slight gap from the last boxplot
+legend_text_tmp <- paste(names(ethnicity_labels), "= ", ethnicity_labels, ", n =", ethnicity_counts_tmp, collapse = "\n")
+
+# Create Ethnicity Boxplots (10 groups, in a single row, with a slightly wider layout)
+ethnicity_groups_samp22D <- list(
+  "All" = math.items_samp22D,
+  "InternSt" = subset(math.items_samp22D, ethnicity == "Nonresident Alien"),
+  "Asian" = subset(math.items_samp22D, ethnicity == "Asian"),
+  "White" = subset(math.items_samp22D, ethnicity == "White"),
+  "Multiracial" = subset(math.items_samp22D, ethnicity == "Two or more races"),
+  "NativeAm" = subset(math.items_samp22D, ethnicity == "American Indian or Alaska Native"),
+  "Hispanic" = subset(math.items_samp22D, ethnicity == "Hispanic/Latino"),
+  "Black" = subset(math.items_samp22D, ethnicity == "Black or African American"),
+  "PacificIsl" = subset(math.items_samp22D, ethnicity == "Native Hawaiian or Other Pacific Islander"),
+  "NA" = subset(math.items_samp22D, ethnicity == "Missing") # Ethnicity missing values are coded as a "Missing" group
+)
+
+mathTheta91_ethnicity_boxplots_samp22D <- lapply(names(ethnicity_groups_samp22D), function(group) {
+  ggplot(ethnicity_groups_samp22D[[group]], aes(x = factor(1), y = Theta_math91)) +
+    geom_boxplot(width = 0.3, fill = "gray") +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(x = -0.35, y = 0.11),
+                 size = 2.5, color = "black") +  # Font size reduced to match lower row
+    labs(title_tmp = group, x = ifelse(group == "NativeAm", "Ethnicity", ""), y = ifelse(group == "All", "Math Theta91 Scores", "")) +
+    theme_minimal() +
+    theme(axis.text.x = element_blank(), plot.margin = margin(r = 20)) +  # Increased right margin
+    ylim(y_limits_tmp)
+})
+
+# Create Demographic Boxplots (6 groups, in a single row with increased spacing)
+demographic_boxplots_samp22D <- list(
+  ggboxplot(math.items_samp22D, x = "college", y = "Theta_math91", color = "college",
+            palette = c("black", "#999999"), ylab = "Math Theta91 Score", xlab = "College", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(math.items_samp22D, x = "Age_d24", y = "Theta_math91", color = "Age_d24",
+            palette = c("black", "#999999"), ylab = "", xlab = "Age Group", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(na.omit(math.items_samp22D[c("gender", "Theta_math91")]), x = "gender", y = "Theta_math91", color = "gender",
+          palette = c("black", "#999999"), ylab = "", xlab = "Gender", width = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = round(after_stat(y), 2)),
+               position = position_nudge(y = 0.11),
+               size = 2.5, color = "black") +
+  theme(legend.position = "none"),
+
+ggboxplot(na.omit(math.items_samp22D[c("Military", "Theta_math91")]), x = "Military", y = "Theta_math91", color = "Military",
+          palette = c("black", "#999999"), ylab = "", xlab = "Military Status", width = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = round(after_stat(y), 2)),
+               position = position_nudge(y = 0.11),
+               size = 2.5, color = "black") +
+  theme(legend.position = "none"),
+
+
+  ggboxplot(math.items_samp22D, x = "Pell", y = "Theta_math91", color = "Pell",
+            palette = c("black", "#999999"), ylab = "", xlab = "Financial Support", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(math.items_samp22D, x = "transfer", y = "Theta_math91", color = "transfer",
+            palette = c("black", "#999999"), ylab = "", xlab = "Transfer Student", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none")
+)
+
+# Save to PDF with improved spacing for the legend
+pdf("Math_Theta91_Demographics_Boxplots_samp22D.pdf", width = 14, height = 8)
+
+grid.arrange(
+  arrangeGrob(
+    arrangeGrob(grobs = mathTheta91_ethnicity_boxplots_samp22D, ncol = 10),
+    textGrob(legend_text_tmp, x = 0.98, just = "right", gp = gpar(fontsize = 8)),  # Slightly pushed right
+    ncol = 2, widths = c(4, 1.2)  # Increased right spacing
+  ),
+  arrangeGrob(grobs = demographic_boxplots_samp22D, ncol = 6),
+  nrow = 2,
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+dev.off()
+
+```
+
+#### AnSamp2
+```{r}
+# Define common y-axis limits for consistency
+y_limits_tmp <- range(math.items_AnSamp2$Theta_math91, na.rm = TRUE)
+
+# Dynamically determine sample size for the title
+sample_size_AnSamp2 <- nrow(math.items_AnSamp2)
+title_tmp <- paste("Math Theta91 scores Across Demographic Variables, n =", sample_size_AnSamp2)
+
+# Compute correct counts
+ethnicity_counts_tmp <- table(math.items_AnSamp2$ethnicity, useNA = "always")
+ethnicity_counts_tmp <- c(
+  "All" = nrow(math.items_AnSamp2),
+  "InternSt" = ethnicity_counts_tmp["Nonresident Alien"],
+  "Asian" = ethnicity_counts_tmp["Asian"],
+  "White" = ethnicity_counts_tmp["White"],
+  "Multiracial" = ethnicity_counts_tmp["Two or more races"],
+  "NativeAm" = ethnicity_counts_tmp["American Indian or Alaska Native"],
+  "Hispanic" = ethnicity_counts_tmp["Hispanic/Latino"],
+  "Black" = ethnicity_counts_tmp["Black or African American"],
+  "PacificIsl" = ethnicity_counts_tmp["Native Hawaiian or Other Pacific Islander"],
+  "NA" = ethnicity_counts_tmp["Missing"])
+
+# Generate legend text with a slight gap from the last boxplot
+legend_text_tmp <- paste(names(ethnicity_labels), "= ", ethnicity_labels, ", n =", ethnicity_counts_tmp, collapse = "\n")
+
+# Create Ethnicity Boxplots (10 groups, in a single row, with a slightly wider layout)
+ethnicity_groups_AnSamp2 <- list(
+  "All" = math.items_AnSamp2,
+  "InternSt" = subset(math.items_AnSamp2, ethnicity == "Nonresident Alien"),
+  "Asian" = subset(math.items_AnSamp2, ethnicity == "Asian"),
+  "White" = subset(math.items_AnSamp2, ethnicity == "White"),
+  "Multiracial" = subset(math.items_AnSamp2, ethnicity == "Two or more races"),
+  "NativeAm" = subset(math.items_AnSamp2, ethnicity == "American Indian or Alaska Native"),
+  "Hispanic" = subset(math.items_AnSamp2, ethnicity == "Hispanic/Latino"),
+  "Black" = subset(math.items_AnSamp2, ethnicity == "Black or African American"),
+  "PacificIsl" = subset(math.items_AnSamp2, ethnicity == "Native Hawaiian or Other Pacific Islander"),
+  "NA" = subset(math.items_AnSamp2, ethnicity == "Missing") # Ethnicity missing values are coded as a "Missing" group
+)
+
+mathTheta91_ethnicity_boxplots_AnSamp2 <- lapply(names(ethnicity_groups_AnSamp2), function(group) {
+  ggplot(ethnicity_groups_AnSamp2[[group]], aes(x = factor(1), y = Theta_math91)) +
+    geom_boxplot(width = 0.3, fill = "gray") +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(x = -0.35, y = 0.11),
+                 size = 2.5, color = "black") +  # Font size reduced to match lower row
+    labs(title_tmp = group, x = ifelse(group == "NativeAm", "Ethnicity", ""), y = ifelse(group == "All", "Math Theta91 Scores", "")) +
+    theme_minimal() +
+    theme(axis.text.x = element_blank(), plot.margin = margin(r = 20)) +  # Increased right margin
+    ylim(y_limits_tmp)
+})
+
+# Create Demographic Boxplots (6 groups, in a single row with increased spacing)
+demographic_boxplots_AnSamp2 <- list(
+  ggboxplot(math.items_AnSamp2, x = "college", y = "Theta_math91", color = "college",
+            palette = c("black", "#999999"), ylab = "Math Theta91 Score", xlab = "College", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(math.items_AnSamp2, x = "Age_d24", y = "Theta_math91", color = "Age_d24",
+            palette = c("black", "#999999"), ylab = "", xlab = "Age Group", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(na.omit(math.items_AnSamp2[c("gender", "Theta_math91")]), x = "gender", y = "Theta_math91", color = "gender",
+          palette = c("black", "#999999"), ylab = "", xlab = "Gender", width = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = round(after_stat(y), 2)),
+               position = position_nudge(y = 0.11),
+               size = 2.5, color = "black") +
+  theme(legend.position = "none"),
+
+ggboxplot(na.omit(math.items_AnSamp2[c("Military", "Theta_math91")]), x = "Military", y = "Theta_math91", color = "Military",
+          palette = c("black", "#999999"), ylab = "", xlab = "Military Status", width = 0.5) +
+  stat_summary(fun = median, geom = "text",
+               aes(label = round(after_stat(y), 2)),
+               position = position_nudge(y = 0.11),
+               size = 2.5, color = "black") +
+  theme(legend.position = "none"),
+
+
+  ggboxplot(math.items_AnSamp2, x = "Pell", y = "Theta_math91", color = "Pell",
+            palette = c("black", "#999999"), ylab = "", xlab = "Financial Support", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none"),
+
+  ggboxplot(math.items_AnSamp2, x = "transfer", y = "Theta_math91", color = "transfer",
+            palette = c("black", "#999999"), ylab = "", xlab = "Transfer Student", width = 0.5) +
+    stat_summary(fun = median, geom = "text",
+                 aes(label = round(after_stat(y), 2)),
+                 position = position_nudge(y = 0.11),
+                 size = 2.5, color = "black") +
+    theme(legend.position = "none")
+)
+
+# Save to PDF with improved spacing for the legend
+pdf("Math_Theta91_Demographics_Boxplots_AnSamp2.pdf", width = 14, height = 8)
+
+grid.arrange(
+  arrangeGrob(
+    arrangeGrob(grobs = mathTheta91_ethnicity_boxplots_AnSamp2, ncol = 10),
+    textGrob(legend_text_tmp, x = 0.98, just = "right", gp = gpar(fontsize = 8)),  # Slightly pushed right
+    ncol = 2, widths = c(4, 1.2)  # Increased right spacing
+  ),
+  arrangeGrob(grobs = demographic_boxplots_AnSamp2, ncol = 6),
+  nrow = 2,
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+dev.off()
+
+```
+
+### Ethnicity Categories' Reduction
+
+#### Ethnicity Groups Boxplots
+```{r}
+title_tmp <- paste("Math Theta91 Scores Across Ethnicity Groups_AnSamp2, n =", sample_size_AnSamp2)
+
+grid.arrange(
+  arrangeGrob(grobs = mathTheta91_ethnicity_boxplots_AnSamp2, ncol = 10),
+  textGrob(legend_text_tmp, x = 0.5, gp = gpar(fontsize = 8)),
+  nrow = 2,
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+```
+
+```{r}
+title_tmp <- paste("Math Theta91 Scores Across Ethnicity Groups_samp22D, n =", sample_size_samp22D)
+
+grid.arrange(
+  arrangeGrob(grobs = mathTheta91_ethnicity_boxplots_samp22D, ncol = 10),
+  textGrob(legend_text_tmp, x = 0.5, gp = gpar(fontsize = 8)),
+  nrow = 2,
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+```
+
+#### Other Demographic Groups Boxplots
+
+##### samp22D
+```{r}
+title_tmp <- paste("Math Theta91 Scores Across Demographic Groups, samp22D, n =", sample_size_samp22D)
+
+grid.arrange(
+  arrangeGrob(grobs = demographic_boxplots_samp22D, ncol = 3),  # Auto layout
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+```
+
+##### AnSamp2
+```{r}
+title_tmp <- paste("Math Theta91 scores Across Demographic Groups, AnSamp2, n =", sample_size_AnSamp2)
+
+grid.arrange(
+  arrangeGrob(grobs = demographic_boxplots_AnSamp2, ncol = 3),  # Auto layout
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+```
+
+#### Unique Combinations of Demographic Variables
+There are 2^5x9 = 32x9 = 288 possible unique combinations of 6 demographic variables and 32 combinations of 5 demographic variables (without ethnicity)
+There are 29 out of 32 possible unique combinations of 5 demographic variables (without ethnicity)
+```{r}
+# Count unique combinations of the five dichotomous variables (without ethnicity)
+unique_demogr_combinations_wo_etnicity_AnSamp2 <- math.items_AnSamp2 %>%
+  select(Age_d24, gender, Military, Pell, transfer) %>%
+  distinct() %>%  # Get unique rows
+  summarise(unique_count = n())
+
+# Print the result
+print(unique_demogr_combinations_wo_etnicity_AnSamp2)
+```
+
+There are 156 out of 288 possible unique combinations of 5 demographic variables (without ethnicity)
+```{r}
+# Count unique combinations of six dichotomous variables (including ethnicity)
+unique_demogr_combinations_AnSamp2 <- math.items_AnSamp2 %>%
+  select(ethnicity, Age_d24, gender, Military, Pell, transfer) %>%
+  distinct() %>%  # Get unique rows
+  summarise(unique_count = n())
+
+# Print the result
+print(unique_demogr_combinations_AnSamp2)
+```
+
+unique combinations of the five dichotomous variables for each ethnicity category
+```{r}
+#library(dplyr)
+unique_demogr_combinations_in_ethnicity_AnSamp2 <- math.items_AnSamp2 %>%
+  select(ethnicity, Age_d24, gender, Military, Pell, transfer) %>%
+  group_by(ethnicity) %>%
+  summarise(
+    unique_count = n_distinct(interaction(Age_d24, gender, Military, Pell, transfer, sep = "_")),
+    total_students = n()
+  )
+# Print the result
+print(unique_demogr_combinations_in_ethnicity_AnSamp2)
+
+# Count unique combinations and total students per ethnicity
+unique_combinations <- math.items_AnSamp2 %>%
+  select(ethnicity, Age_d24, gender, Military, Pell, transfer) %>%
+  group_by(ethnicity) %>%
+  summarise(
+    unique_count = n_distinct(interaction(Age_d24, gender, Military, Pell, transfer, sep = "_")),
+    N_students = n()
+  )
+
+# Print the result
+print(unique_combinations)
+
+
+```
+
+#### Recode Ethnicity Variable
+Combining the specified categories into a new category called "Other" while keeping the rest unchanged
+```{r}
+# library(dplyr)
+
+# Recode ethnicity, combining specified categories into "Other"
+math.items_AnSamp2 <- math.items_AnSamp2 %>%
+  mutate(ethnicity = case_when(
+    ethnicity %in% c("Two or more races", 
+                     "Native Hawaiian or Other Pacific Islander", 
+                     "American Indian or Alaska Native", 
+                     "Nonresident Alien", 
+                     "Missing") ~ "Other",
+    TRUE ~ ethnicity  # Keep other categories unchanged
+  ))
+
+# Set "White" as the first level to ensure it remains the reference category
+math.items_AnSamp2$ethnicity <- factor(math.items_AnSamp2$ethnicity, 
+                                       levels = c("White", 
+                                                  "Asian", 
+                                                  "Hispanic/Latino", 
+                                                  "Black or African American",
+                                                  "Other"))
+
+# Check levels to confirm "White" is first
+levels(math.items_AnSamp2$ethnicity)
+
+```
+##### 5-Category Ethnicity Variable
+
+##### Correlations
+```{r}
+# Ethnicity Correlation Plot, 5 categories, AnSamp2 
+scatterplot_ethnicity5_Theta91_AnSamp2 <- ggplot(data = math.items_AnSamp2, aes(x = Age, y = Theta_math91)) +
+  geom_point() +
+  facet_wrap(~ethnicity, ncol = 2) +
+  theme(legend.position = "bottom") +
+  ggtitle("Theta-scores and 5 Ethnicity Groups")
+scatterplot_ethnicity5_Theta91_AnSamp2
+```
+
+###### Boxplots
+
+```{r}
+# Define common y-axis limits for consistency
+#y_limits_tmp <- range(math.items_AnSamp2$Theta_math91, na.rm = TRUE)
+
+# Dynamically determine sample size for the title
+sample_size_AnSamp2 <- nrow(math.items_AnSamp2)
+title_tmp <- paste("Math Theta91 Scores Across 5 Ethnicity Groups, AnSamp2, n =", sample_size_AnSamp2)
+
+# Define ethnicity labels (shortened) and legend
+ethnicity5_labels <- c(
+  "All" = "All Ethnicities",
+    "White" = "White Americans",
+  "Asian" = "Asian Americans",
+  "Hispanic" = "Hispanic/Latino",
+  "Black" = "Black or African American",
+  "Other" = "Other"
+)
+
+# Compute correct counts
+ethnicity_counts5_tmp <- table(math.items_AnSamp2$ethnicity, useNA = "always")
+ethnicity_counts5_tmp <- c(
+  "All" = nrow(math.items_AnSamp2),
+    "White" = ethnicity_counts5_tmp["White"],
+  "Asian" = ethnicity_counts5_tmp["Asian"],
+  "Hispanic" = ethnicity_counts5_tmp["Hispanic/Latino"],
+  "Black" = ethnicity_counts5_tmp["Black or African American"],
+  "Other" = ethnicity_counts5_tmp["Other"]
+)
+
+# Generate legend text
+legend_text_tmp <- paste(names(ethnicity5_labels), "= ", ethnicity5_labels, ", n =", ethnicity_counts5_tmp, collapse = "\n")
+
+# Create Ethnicity Boxplots (5 groups in a single row)
+ethnicity_5groups_AnSamp2 <- list(
+  "All" = math.items_AnSamp2,
+  "White" = subset(math.items_AnSamp2, ethnicity == "White"),
+  "Asian" = subset(math.items_AnSamp2, ethnicity == "Asian"),
+  "Hispanic" = subset(math.items_AnSamp2, ethnicity == "Hispanic/Latino"),
+  "Black" = subset(math.items_AnSamp2, ethnicity == "Black or African American"),
+  "Other" = subset(math.items_AnSamp2, ethnicity == "Other")
+)
+
+# Generate boxplots
+mathTheta91_ethnicity5_boxplots_AnSamp2 <- lapply(names(ethnicity_5groups_AnSamp2), function(group) {
+  subset_data <- ethnicity_5groups_AnSamp2[[group]]
+  if (nrow(subset_data) > 0) {
+    ggplot(subset_data, aes(x = factor(1), y = Theta_math91)) +
+      geom_boxplot(width = 0.3, fill = "gray") +
+      stat_summary(fun = median, geom = "text",
+                   aes(label = round(after_stat(y), 2)),
+                   position = position_nudge(x = -0.35, y = 0.11),
+                   size = 3, color = "black") +  # Slightly larger font for visibility
+      labs(title = group, x = NULL, y = ifelse(group == "All", "Math Theta91 Scores", "")) +
+      theme_minimal() +
+      theme(axis.text.x = element_blank(), plot.margin = margin(5, 5, 5, 5)) +  # Adjust margins
+      ylim(y_limits_tmp)
+  } else {
+    NULL  # Exclude empty groups
+  }
+})
+
+# Remove NULL elements
+mathTheta91_ethnicity5_boxplots_AnSamp2 <- Filter(Negate(is.null), mathTheta91_ethnicity5_boxplots_AnSamp2)
+
+# Save to PDF with improved spacing
+pdf("Math_Theta91_5-Category_Ethnicity_Boxplots_AnSamp2.pdf", width = 10, height = 6)  # Reduced height
+
+grid.arrange(
+  arrangeGrob(grobs = mathTheta91_ethnicity5_boxplots_AnSamp2, ncol = 6),  # Single row for plots
+  textGrob(legend_text_tmp, x = 0.5, just = "center", gp = gpar(fontsize = 10)),  # Legend centered below
+  nrow = 2, heights = c(3, 1),  # Reduce legend height, balance layout
+  top = textGrob(title_tmp, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+dev.off()
+
+```
+
+```{r}
+#title_tmp <- paste("Math Theta91 Scores Across 5 Ethnicity Groups, AnSamp2, n =", sample_size_AnSamp2)
+
+grid.arrange(
+  arrangeGrob(grobs = mathTheta91_ethnicity5_boxplots_AnSamp2, ncol = 6),
+  textGrob(legend_text_tmp, x = 0.5, gp = gpar(fontsize = 8)),
+  nrow = 2,
+  top = textGrob(title_tmp, gp = gpar(fontsize = 12, fontface = "bold"))
+)
+
+```
+
+# Multiple linear regression model (MLR) for Theta_math91
+
+## Direct Effects Model: Age, ethnicity, military, and transfer are significant; gender and pell are not significant.
+Running the Model with Direct Effects Only helps establish the baseline by examining how each independent variable influences the dependent variable on its own (it tests the significance of each predictor individually).
+All 6 demographic variables (excluding the college variable) are included in the model to assess their direct effects on Theta_math91.
+Model: Theta_math91 regresses on Age_d24, ethnicity, gender, Military, Pell, and transfer
+```{r}
+MLR_dirEffMod_MathTheta91Demogr<-lm(Theta_math91 ~ Age_d24 + ethnicity + gender + transfer + Military + Pell, data = math.items_AnSamp2)
+
+drop1(MLR_dirEffMod_MathTheta91Demogr, test = "F")
+```
+
+## Full Interaction Effects Model:  intercept, Age, ethnicity, transfer, military, ageXethnicityAsian, ageXtransfer, and ageXmilitary are significant
+Full Interaction Effects Model tests all interactions, so we don’t miss important moderating effects. If the interaction terms are statistically significant, it suggests that the relationship between Age_d24 and Theta_math91 depends on the demographic variable.
+
+Significant interaction terms (p < 0.05) mean that the effects of ethnicityAsian, transfer, and military variables on Theta_math91 depend on the age group. Therefore, we will have to incorporate these interaction effects in the final model.
+```{r}
+# Include interaction terms between Age_d24 (the group variable) and each demographic covariate in the model:
+
+MLR_fullMod_MathTheta91Demogr <- lm(Theta_math91 ~ Age_d24 * (ethnicity + gender + transfer + Military + Pell), 
+                                       data = math.items_AnSamp2)# The group * (var1 + var2 + ...) syntax expands to include both the main effects and their interactions
+summary(MLR_fullMod_MathTheta91Demogr)
+```
+
+### Empirical (boxplots) Significant Effects and Interactions 
+```{r}
+# Load necessary libraries
+# library(ggplot2)
+# library(dplyr)
+
+# Remove NA values from transfer and Military
+math.items_AnSamp2_filtered_tmp <- math.items_AnSamp2 %>%
+  filter(!is.na(transfer) & !is.na(Military))
+
+# Define better facet labels
+facet_labels_tmp <- c(
+  "No" = "Non-Transfer / Non-Military",
+  "Yes" = "Transfer / Military"
+)
+
+# Updated plot with clearer facet labels and title
+MLR_finalMod_MathTheta91Demogr_interactionsBoxplots <- ggplot(math.items_AnSamp2_filtered_tmp, aes(x = Age_d24, y = Theta_math91, color = ethnicity)) +
+  geom_boxplot() +
+  facet_wrap(~ transfer + Military, labeller = labeller(transfer = c("No" = "Non-Transfer", "Yes" = "Transfer"),
+                                                        Military = c("No" = "Non-Military", "Yes" = "Military"))) +
+  ggtitle("Empirical Interactions Boxplots from Math Assessment, AnSamp2 (n = 1570)") +
+  theme(
+    strip.text = element_text(size = 12),  # Adjust facet label size for readability
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5)  # Centered, bold title
+  )
+
+# Display the plot
+MLR_finalMod_MathTheta91Demogr_interactionsBoxplots
+
+# Save the plot as a PDF
+ggsave("math_Empirical interactions_Demogr Boxplots_4 ethnicities_AnSamp2.pdf", plot = MLR_finalMod_MathTheta91Demogr_interactionsBoxplots, width = 10, height = 6)
+
+
+```
+
+## Final Parsimonious Model: MLR with Adjustment for Robust Standard Errors
+Final Parsimonious Model removes unnecessary complexity by keeping only statistically significant interactions.
+Since the assumption of homoscedasticity (constant variance of residuals) is violated, we use robust standard errors.
+
+```{r}
+# library(sandwich)
+# library(lmtest)
+
+# Fit the model with specified interaction terms
+MLR_finalMod_MathTheta91Demogr <- lm(Theta_math91 ~ 
+                                        Age_d24 +
+                                        transfer + 
+                                        Age_d24 * transfer + 
+                                        Military + 
+                                        Age_d24 * Military + 
+                                        ethnicity +
+                                        Age_d24 * ethnicity
+                                        + gender + Pell, 
+                                        data = math.items_AnSamp2)
+
+# Compute robust standard errors
+coeftest(MLR_finalMod_MathTheta91Demogr, vcov = 
+           vcovHC(MLR_finalMod_MathTheta91Demogr, type = "HC3"))
+
+```
+
+```{r}
+MLR_finalMod_MathTheta91Demogr_CI_tab <- confint(MLR_finalMod_MathTheta91Demogr)
+MLR_finalMod_MathTheta91Demogr_CI_tab
+```
+
+### Exporting to an external file
+```{r}
+#library(flextable)
+
+MLR_finalMod_MathTheta91Demogr_CI_tab %>%
+  as.data.frame() %>%
+  flextable() %>%
+  flextable::save_as_docx(path = "MLR_finalMod_MathTheta91Demogr_CI_tab.docx")
+
+```
+
+
+### Explained Variance: R-squared = 16.5%; the model explains 16.5% of the variance in Theta_math91 scores
+```{r}
+summary(MLR_finalMod_MathTheta91Demogr)$adj.r.squared
+```
+### Interaction Plots 
+```{r}
+# library(interactions)
+
+# Interaction Plot: Age × Transfer
+cat_plot(MLR_finalMod_MathTheta91Demogr, pred = Age_d24, modx = transfer, 
+         x.label = "Age Group (TCAUS vs. AUS)", 
+         y.label = "Predicted Theta-Scores", 
+         main.title = "Interaction Effect: Age × Transfer", 
+         interval = TRUE, dodge.width = 0.3)
+
+```
+
+
+```{r}
+cat_plot(MLR_finalMod_MathTheta91Demogr, pred = Age_d24, modx = Military, 
+         x.label = "Age Group (TCAUS vs. AUS)", 
+         y.label = "Predicted Theta-Scores", 
+         main.title = "Interaction Effect: Age × Military", 
+         interval = TRUE, dodge.width = 0.3)
+
+```
+
+
+```{r}
+cat_plot(MLR_finalMod_MathTheta91Demogr, pred = Age_d24, modx = ethnicity, 
+         x.label = "Age Group (TCAUS vs. AUS)", 
+         y.label = "Predicted Theta-Scores", 
+         main.title = "Interaction Effect: Age × Ethnicity", 
+         interval = TRUE, dodge.width = 0.3)
+
+```
+
+### Assumptions check for final multiple linear regression model
+"Even without the normality assumption, t and F statistics have approximately t
+and F distributions, at least in large sample sizes.” (p. 168). Wooldridge, J. M. (2013). Introductory Econometrics: A Modern Approach. India: South-Western Cengage Learning.
+ "The regression coefficients are approximately normal in larger samples even if ε does not have a normal distribution. Vittinghoff, E., Glidden, D.V., Shiboski, S.C., McCulloch, C.E. (2012). Linear Regression. In: Regression Methods in Biostatistics. Statistics for Biology and Health. Springer, Boston, MA. https://doi.org/10.1007/978-1-4614-1353-0_4
+
+```{r}
+# Change the panel layout to 2 x 2 (to look at all 4 plots at once)
+par(mfrow = c(2, 2))
+
+# Use plot() function to create diagnostic plots
+plot(MLR_finalMod_MathTheta91Demogr)
+```
+
+#### Linearity is mostly satisfied
+
+##### Residuals vs. Fitted Values Plot: Linearity is mostly satisfied but certain predictor interactions might be influencing residual behavior.
+Linearity is mostly satisfied, as there is no clear curvature in the residuals.
+The red LOESS smooth line is flat, indicating that the residuals are not showing a systematic pattern.
+Residuals are fairly symmetrically distributed around zero, which suggests that a linear model is reasonable.
+There are a few labeled points (115, 1477, 475), which could indicate potential outliers. Check the plot of the predicted values against the standardized residual values (see the Scale-Location Plot below) to see if the points are equally distributed across all the values of the independent variables. 
+```{r}
+plot(MLR_finalMod_MathTheta91Demogr$fitted.values, MLR_finalMod_MathTheta91Demogr$model$Theta_math91, main = "Observed vs. Predicted Values", xlab = "Predicted Theta91 Values", ylab = "Observed Theta91 Values")
+plot(MLR_finalMod_MathTheta91Demogr, which = 1) # Residuals vs. Fitted
+```
+
+###### Observed versus Predicted values 
+(again ideally a horizontal line)
+```{r}
+plot(MLR_finalMod_MathTheta91Demogr$fitted.values, MLR_finalMod_MathTheta91Demogr$model$Theta_math91, main = "Observed vs. Predicted Values", xlab = "Predicted Theta91 Values", ylab = "Observed Theta91 Values")
+```
+
+#### Normality of Residuals: Residuals are normally distributed
+The residuals should be normally distributed around zero for each level of the independent variables.
+The histogram and QQ plot visually suggest that the residuals are approximately normally distributed, although the Shapiro-Wilk, Kolmogorov-Smirnov (KS), Anderson-Darling, and Cramer-von Mises tests rejected normality (p < 0.01). These tests are sensitive to large sample sizes and might detect tiny deviations from normality that are not practically significant. There might be slight deviations in the tails that are enough for these statistical tests to detect even though the bulk of the data looks normal. 
+Visual inspection can sometimes be more practical for large samples, as tiny deviations won't typically affect most analyses.
+Although the KS test to the standard normal distribution rejected the normality of the MLR residuals (D = 0.09, p < 0.001), the KS test to the normal distribution with the same mean and SD as MLR residuals' distribution could not reject the normality of the MLR residuals (D = 0.03, p = 0.21).
+Moreover, visually, the KS distance (0.03 or 0.09 to the standard normal distribution) is small, indicating that the residuals are approximately normally distributed.
+Effect sizes of normality: The very small skewness (-0.028) and small kurtosis (0.19) suggested normality. 
+
+##### Histogram: normal distribution of the residuals 
+```{r}
+# Extract the residuals from the model
+MLR_finalMod_MathTheta91Demogr_residuals <- MLR_finalMod_MathTheta91Demogr$residuals
+# Plot the results
+hist(MLR_finalMod_MathTheta91Demogr_residuals)
+```
+
+##### QQ-Plot: close-to-normal distribution of the residuals
+Plot the model residuals against the quantiles of a standard normal distribution.
+The majority of the points fall approximately along the reference line, so we can assume normality. The endpoints are deviating from the straight line, suggesting a heavy-tailed distribution (Distribution is longer and tails are fatter, so there might be outliers).
+Since we have less than 5k entries, we should perform a Shapiro-Wilk Normality Test.
+```{r}
+#library(car)
+# Plot the model residuals
+qqPlot(MLR_finalMod_MathTheta91Demogr_residuals)
+```
+
+###### QQ Plot for standardized model residuals
+```{r}
+plot(MLR_finalMod_MathTheta91Demogr, which = 2) # Q-Q Plot
+```
+
+##### Shapiro test rejected normal distribution of the residuals; p-value < 0.0001
+
+###### Model Residuals
+```{r}
+shapiro.test(MLR_finalMod_MathTheta91Demogr_residuals)
+```
+
+###### Studentized Residuals
+```{r}
+MLR_finalMod_MathTheta91Demogr_studentizedResid <- MASS::studres(MLR_finalMod_MathTheta91Demogr) # transform residuals easily
+shapiro.test(sample(MLR_finalMod_MathTheta91Demogr_studentizedResid)) # p value non-sign = normal distribution of residuals
+```
+
+##### Kolmogorov-Smirnov (KS) test to the standard normal distribution rejected normal distribution of the residuals; p-value = 0.0001. 
+However, the KS test is sensitive to sample size; combining it with visuals like the empirical cumulative distribution function (ECDF), QQ-plots, histograms, and effect size measures (skewness/kurtosis) gives a better assessment.
+
+```{r}
+ks.test(MLR_finalMod_MathTheta91Demogr_residuals, 'pnorm')
+```
+
+###### KS test to the normal distribution with the same mean and SD as our residuals' distribution could not reject the normality of the residuals. 
+
+Empirical normality measure: KS Distance = 0.028 (small), p-value = 0.18 suggested normal distribution of the residuals
+KS test statistic (D-value) quantifies the largest difference between the empirical and theoretical distributions. The KS test is sensitive to sample size; combining it with QQ-plots, histograms, and effect size measures (skewness/kurtosis) gives a better assessment.
+
+```{r}
+ks_result <- ks.test(MLR_finalMod_MathTheta91Demogr_residuals, "pnorm", 
+                     mean = mean(MLR_finalMod_MathTheta91Demogr_residuals), 
+                     sd = sd(MLR_finalMod_MathTheta91Demogr_residuals))
+
+# Print the KS statistic
+ks_result
+
+```
+
+###### Empirical CDF visualized a small KS Distance
+Empirical normality measure: KS Distance = 0.03 (small) suggested some deviation from normality, but might still be acceptable.
+KS test statistic (D-value) quantifies the largest difference between the empirical and theoretical distributions. 
+Visualize the maximum absolute difference between the empirical cumulative distribution function (ECDF) of the residuals and the theoretical normal CDF(i.e., how far the distribution deviates from normality).
+
+```{r}
+residuals_sorted <- sort(MLR_finalMod_MathTheta91Demogr$residuals)
+empirical_cdf <- ecdf(residuals_sorted)
+theoretical_cdf <- pnorm(residuals_sorted, mean = mean(residuals_sorted), sd = sd(residuals_sorted))
+plot(residuals_sorted, empirical_cdf(residuals_sorted), type = "l", col = "red", 
+     main = "Empirical vs Theoretical Normal CDF",
+     xlab = "Residuals", ylab = "Cumulative Probability")
+lines(residuals_sorted, theoretical_cdf, col = "black", lty = 2)
+legend("topleft", legend = c("Empirical CDF", "Theoretical CDF"), col = c("red", "black"), lty = c(1,2))
+```
+
+
+```{r}
+# library(ggplot2)
+# library(gridExtra)  # For arranging multiple plots
+
+# Function to generate empirical vs. theoretical CDF plot
+plot_ecdf_vs_normal <- function(residuals, title) {
+  residuals_sorted <- sort(residuals)
+  empirical_cdf <- ecdf(residuals_sorted)
+  theoretical_cdf <- pnorm(residuals_sorted, mean = mean(residuals_sorted), sd = sd(residuals_sorted))
+  
+  # Create a dataframe for plotting
+  ks_data <- data.frame(
+    Residuals = residuals_sorted,
+    Empirical_CDF = empirical_cdf(residuals_sorted),
+    Theoretical_CDF = theoretical_cdf
+  )
+  
+  # Generate plot
+  ggplot(ks_data, aes(x = Residuals)) +
+    geom_line(aes(y = Empirical_CDF), color = "red", size = 1, linetype = "solid") +
+    geom_line(aes(y = Theoretical_CDF), color = "black", size = 1, linetype = "dashed") +
+    ggtitle(title) +
+    xlab("Residuals") + ylab("Cumulative Probability") +
+    theme_minimal()
+}
+
+MLR_finalMod_MathTheta91Demogr_ResidualsNormalityPlot  <- plot_ecdf_vs_normal(MLR_finalMod_MathTheta91Demogr_residuals, 
+                             "Empirical (red) vs. Theoretical (black) Normal CDF for MLR KS Distance")
+
+MLR_finalMod_MathTheta91Demogr_ResidualsNormalityPlot
+```
+
+###### One tie is a very small number, unlikely to impact the analysis significantly
+Verify the Warning: ties should not be present for KS test
+```{r}
+sum(duplicated(MLR_finalMod_MathTheta91Demogr_residuals))
+```
+
+However, Anderson-Darling test and Cramer-von Mises test are more robust to ties but produced small p-values (< 0.001), rejecting the null hypothesis that the residuals are normally distributed.
+
+##### Anderson-Darling Test rejected normal distribution of the residuals; p-value = 0.0001  
+Anderson-Darling Test is more robust to ties but rejected the normality of the residuals
+
+```{r}
+#library(nortest)
+ad.test(MLR_finalMod_MathTheta91Demogr_residuals)
+detach("package:nortest", unload = TRUE) # nortest package conflicts with goftest package
+```
+
+##### Cramer-von Mises goodness-of-fit test rejected normal distribution of the residuals; p-value < 0.0001  
+Cramer-von Mises is also robust to ties but rejected the normality of the residuals
+
+```{r}
+#library(goftest)  # Cramer-von Mises test
+cvm.test(MLR_finalMod_MathTheta91Demogr_residuals, "pnorm")
+```
+
+##### Effect sizes for normality
+Skewness and Kurtosis are effect sizes for normality
+
+###### Skewness = -0.034 (very small) suggested normal distribution of the residuals
+For the large samples, skewness values between -0.5 and 0.5 are considered acceptable for normality. The skewness value of -0.034 is very small, suggesting that the residuals are approximately normally distributed.
+
+```{r}
+library(rapportools)
+# Skewness
+skewness(MLR_finalMod_MathTheta91Demogr_residuals)
+```
+
+###### Kurtosis = -0.49 (small) suggested normal distribution of the residuals
+
+```{r}
+kurtosis(MLR_finalMod_MathTheta91Demogr_residuals)
+#detach("package:rapportools", unload = TRUE)# the rapportools package conflicts with the dplyr package
+```
+
+#### Homoscedasticity of Residuals: No strong evidence of heteroscedasticity.
+The large-sample-sensitive tests suggest heteroscedasticity (i.e. residuals having a non-constant variance). The plots of residuals were not too worrying though. The homoscedasticity assumes that the variance of the residual errors is similar across the value of each independent variable.
+The model appears to satisfy the assumption of constant variance.
+Run the tests to be alert for evidence of residuals that are getting larger (i.e., more spread-out) either as a function of time or as a function of the predicted value. To be really thorough, you might also want to plot residuals versus some of the independent variables.
+```{r}
+plot(MLR_finalMod_MathTheta91Demogr, which = 1) # Residuals vs. Fitted
+```
+
+##### Scale-location Plot: No strong evidence of heteroscedasticity 
+The Scale-Location Plot (also known as the Spread-Location Plot) shows the square root of the standardized residuals against the fitted (predicted) values. Check the plot to see if the points are equally distributed across all the values of the independent variables.
+The spread of residuals appears fairly consistent across fitted values, with no obvious fan shape, meaning no strong evidence of model's heteroscedasticity. 
+The red LOESS trend line is relatively flat, suggesting no strong pattern of increasing variance. The residuals are somewhat evenly spread across the range of predicted values, suggesting that the variance is relatively constant.
+Some outliers (e.g., points 115, 1477, and 475) are labeled, indicating that a few observations might have unusually high standardized residuals. They might influence the spread, but they do not form a distinct pattern of increasing variance.
+The vertical banding suggests categorical predictors, which is expected in models with factor variables.
+
+```{r}
+plot(MLR_finalMod_MathTheta91Demogr, which = 3) # Scale-Location plot
+```
+
+##### Breusch-Pagan “non-constant variance” to regress the residuals on the fitted values.
+BP = 50.09, df = 23, p-value < 0.001 suggests a strong evidence of heteroscedasticity. The Breusch-Pagan test is sensitive to sample size, so it is more likely to detect heteroscedasticity in large samples.
+```{r}
+#library(lmtest)
+bptest(MLR_finalMod_MathTheta91Demogr)
+```
+
+##### White test: there is evidence of heteroscedasticity
+Chi-square = 10.63, df = 1, p-value = 0.001 meaning an evidence of heteroscedasticity , but not as strong as in the Breusch-Pagan test.
+This suggests that variance is not constant across fitted values. The White test is sensitive to sample size, so it is more likely to detect heteroscedasticity in large samples.
+```{r}
+ncvTest(MLR_finalMod_MathTheta91Demogr)
+```
+
+
+#### No Multicollinearity among independent variables: Pmax = .53 < 0.8; Scaled GVIF = 1.51 < 2
+Independent variables must not highly correlate with each other. Multicollinearity makes it difficult to identify which variables better explain the dependent variable. 
+
+##### Correlation plots: no multicollinearity; Scaled GVIF < 1.51
+In the matrix of Pearson’s bivariate correlations among all independent variables, all the values should be less than 0.8. 
+No one pair of independent variables has an absolute value of the correlation coefficient greater than 0.53.
+```{r}
+Theta_math91_AnSamp2_pairs_plot()
+Theta_math91_samp22D_pairs_plot()
+```
+
+
+```{r}
+mathTheta91demogr_AnSamp2_corr_matrix <- cor(math.items_AnSamp2 %>%
+                  mutate(across(c(Military, Pell, gender, transfer), as.numeric)) %>%
+                  select(Theta_math91, Age, Military, Pell, gender, transfer),
+                  use = "pairwise.complete.obs")
+
+print(mathTheta91demogr_AnSamp2_corr_matrix, digits = 1)
+
+```
+
+##### Scaled GVIF: no multicollinearity; GVIF^(1/(2*Df)) < 1.76
+The scaled GVIF (Generalized Variance Inflation Factor) is an extension of VIF for categorical variables and models with interactions. Instead of checking for multicollinearity for each dummy-coded variable separately, GVIF assesses collinearity across categorical predictors as a whole.
+According to https://stacyderuiter.github.io/s245-notes-bookdown/collinearity-and-multicollinearity.html, GVIF^(1/(2*Df)) < 2 indicates no multicollinearity. Fox, J., & Monette, G. (1992). Generalized Collinearity Diagnostics. Journal of the American Statistical Association, 87(417), 178–183. DeRuiter, S. (2019). Chapter 11: Collinearity and Multicollinearity. In STAT 245 Course Notes. Retrieved from https://stacyderuiter.github.io/s245-notes-bookdown/collinearity-and-multicollinearity.html
+```{r}
+#library(car)
+vif(MLR_finalMod_MathTheta91Demogr, type = "predictor")
+
+```
+
+#### Leverage vs. residuals Plot: there are no outliers
+```{r}
+plot(MLR_finalMod_MathTheta91Demogr, which = 5) # Leverage vs Residuals
+```
+
+## Save all assumptions plots in a PDF file
+
+```{r}
+pdf("Math-Theta91-on-Demographics MLR Assumptions Check.pdf", width = 14, height = 8)
+
+# Define layout: 5 col., 2 rows
+par(mfrow = c(3, 3), mar = c(4, 4, 2, 1), oma = c(0, 0, 3, 0))  # Outer margin for title
+
+# 1. Correlation Plot
+corrplot::corrplot(mathTheta91demogr_AnSamp2_corr_matrix, main = "Correlation Matrix")
+
+# 2. Histogram of Residuals
+hist(MLR_finalMod_MathTheta91Demogr$residuals, 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals")
+
+# 3. Observed vs. Predicted Values
+plot(MLR_finalMod_MathTheta91Demogr$fitted.values, MLR_finalMod_MathTheta91Demogr$model$Theta_math91, main = "Observed vs. Predicted Values", xlab = "Predicted Theta91 Values", ylab = "Observed Theta91 Values")
+
+# 4. Residuals vs Fitted
+plot(MLR_finalMod_MathTheta91Demogr, which = 1)
+
+# 5. Scale-Location
+plot(MLR_finalMod_MathTheta91Demogr, which = 3)
+
+# 6. Leverage vs Residuals
+plot(MLR_finalMod_MathTheta91Demogr, which = 5)
+
+# 7. QQ Plot
+car::qqPlot(MLR_finalMod_MathTheta91Demogr$residuals, 
+            main = "QQ Plot of Residuals", ylab = "Residuals")
+
+# 8. QQ Plot for Standardized Residuals
+plot(MLR_finalMod_MathTheta91Demogr, which = 2)
+
+# 9. Empirical vs. Theoretical CDF Plot
+residuals_sorted <- sort(MLR_finalMod_MathTheta91Demogr$residuals)
+empirical_cdf <- ecdf(residuals_sorted)
+theoretical_cdf <- pnorm(residuals_sorted, mean = mean(residuals_sorted), sd = sd(residuals_sorted))
+plot(residuals_sorted, empirical_cdf(residuals_sorted), type = "l", col = "red", 
+     main = "Empirical vs Theoretical Normal CDF",
+     xlab = "Residuals", ylab = "Cumulative Probability")
+lines(residuals_sorted, theoretical_cdf, col = "black", lty = 2)
+legend("topleft", legend = c("Empirical CDF", "Theoretical CDF"), col = c("red", "black"), lty = c(1,2))
+
+# Close PDF
+dev.off()
+
+```
+
+# Save all data in one file
+```{r}
+#save.image("D:/Dropbox/DAACS-Validity/Analyses/Math/Math_dataClean-umgc1ua2_7.RData")
+save.image("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/math/Math_dataClean-umgc1ua2_7.RData")
+```
+
+Ethnicity-Specific Effects Among Adult Students (AUS; Each of these interactions tells us how much AUS students from different ethnicities differ from AUS White students):
+
+Age_d24AUS * Asian (-0.3108, p = 0.0296) → Among adult students, Asian students score 0.311 points lower than adult White students.
+Statistically significant.
+
+This is marginally significant (p ≈ 0.09), suggesting a possible trend but not strong evidence.
+
+explanatory_text <- "Linearity of the relationships between the independent and dependent variables is mostly satisfied. 
+Residuals vs Fitted Values Plot: there is no clear curvature in the residuals.The red LOESS smooth line is almost flat, indicating that the residuals are not showing a strong systematic pattern. Residuals are fairly symmetrically distributed around zero, which suggests that a linear model is reasonable. There are a few labeled points (118, 1508, 484), which could indicate potential outliers.
+
+Homoscedasticity: Slight Heteroscedasticity of Residuals
+• Scale-location Plot shows the square root of the standardized residuals against the fitted (predicted) values. The spread of residuals appears fairly consistent across fitted values, with no obvious fan shape, meaning no strong evidence of model's heteroscedasticity.
+The red LOESS trend line is relatively flat, suggesting no strong pattern of decreasing variance. The residuals are somewhat evenly spread across the range of predicted values, suggesting that the variance is relatively constant.
+Some outliers (e.g., points 1325, 1180, and 1508) are labeled, indicating that a few observations might have unusually high standardized residuals.They might influence the spread, but they do not form a distinct pattern of increasing variance.
+The vertical banding suggests categorical predictors, which is expected in models with factor variables.
+• Both White (p < 0.01) and Breusch-Pagan tests (< 0.001) rejected the null hypothesis, meaning the model violates the assumption of homoscedasticity. Both tests are sensitive to a large sample size.
+
+Normality of Residuals: Residuals are normally distributed. The residuals should be normally distributed around zero for each level of the independent variables.
+• The histogram and QQ plot visually suggest that the residuals are approximately normally distributed, although the Shapiro-Wilk, Kolmogorov-Smirnov (KS), Anderson-Darling, and Cramer-von Mises tests rejected normality (p < 0.01). These tests are sensitive to sample size and more likely to reject normality in large samples, even for small deviations.
+• Although the KS test to the standard normal distribution rejected the normality of the MLR residuals (D = 0.09, p < 0.001), the KS test to the normal distribution with the same mean and SD as MLR residuals' distribution could not reject the normality of the MLR residuals (D = 0.03, p = 0.21).
+• Moreover, visually,the CDF (cumulative distribution function) plot presents a good empirical normality measure: the KS distance (0.03 or 0.09 to the standard normal distribution) is small, indicating that the residuals are approximately normally distributed.
+• Effect sizes of normality: The very small skewness (-0.028) and small kurtosis (0.19) suggested normality. 
+
+No multicollinearity: Scaled GVIF < 1.22
+Independent variables must not highly correlate with each other.
+• The absolute values of the correlation coefficients between the independent variables are smaller than 0.54, suggesting no multicollinearity.
+• The scaled GVIF (Generalized Variance Inflation Factor, GVIF^(1/(2*Df)) is an extension of VIF for categorical variables and models with interactions. GVIF assesses collinearity across categorical predictors. The scaled GVIF < 2 indicates no multicollinearity."
