@@ -1,0 +1,587 @@
+---
+title: "Theta-scores via IRT Analyses from 91 valid math items and Analitic Sample 1, IES DAACS Mathematics Assessment (v.2.0), May 2022 - May 2023, umgc1-and-ua2 Combined Sample, n = 4460"
+author: "Oxana Rosca"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: true
+    toc_depth: 6
+    reference_docx: "C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/WordDocMarkdownTemplate.docx"
+  html_document:
+    toc: true
+    toc_depth: 6
+    theme: readable
+---
+
+# Purpose: Obtain Theta-scores via Concurrent Item Response Theory (IRT) Analyses of DAACS Math Assessment Scores from the Analytic Sample 1 using 91 "valid" items (with "good" item parameters and without DIF for age groups) from DAACS Reading Assessment. The data was collected in May 2022 - May 2023 (first attempt, nonspeedy, treatment, UMGC1 and UAlbany2). IES project, 2022-2023.
+
+# Results: The 91-item pool has acceptable parameters and fits the 2PL model better than the complete pool of items (k = 174) or the reduced pool of items with good psychometric parameters (k = 159).
+
+# Assessment: DAACS Math Assessment 
+The DAACS Math Assessment consists of 174 math items from a pool of items (k = 174). Each student completed either 18 items (k_admin_min = 18) or 24 items (k_admin_max = 24) during their first attempt. For the 2022–2023 data collection, we implemented an adaptive multistage testing design, with item difficulty levels assigned by state standards and expert evaluations.
+
+# Participants 
+A total of 5447 participants completed at least one DAACS assessment, including 4152 (76%) from UMGC1 and 1295 from UA2. All participants had both a DAACS-assigned ID (DAACS_ID) and an institution-assigned ID.
+For the math assessment specifically, 4621 students participated : 3869 (84%) UMGC1 and 752 UA2.
+
+# Analytic Sample 1
+
+## Students: Analytic Sample 1 (AnSamp1), n = 4460
+  Purpose: For IRT analyses.
+  Composition: Includes first-attempt scores from 3713 (83.3%) UMGC1 and 747 (16.7%) UA2 non-speedy respondents.
+  Data: Collected between May 2022 and May 2023, including all non-speedy respondents' math scores from their first attempts.	
+The dataset "math.itemsONLY_AnSamp1" includes 174 items' scores (Q001–Q174) but excludes student IDs and other variables.
+A detailed dataframe "math.items_AnSamp1" includes 194 columns:174 item scores, 2 ID variables,	18 personal variables, such as math total scores, dichotomous variables (e.g., gender, age group [below or above 24 years], and college [UMGC or UA2]).
+
+## Items  
+91 (good) items that have no DIF on age and have a significant positive correlation with Theta scores  from 174- and 159-item models, according to logistic regression analyses with graphic representations.
+The "good" items (m = 91) met the following characteristics:
+  a-parameters between 0.36 and 2.5
+  Standard Errors (SEs) for a-par smaller than 1.27
+  b-parameters between -2.3 and +1.8
+  SEs for b-par smaller than 1
+  showed no DIF on the grouping variable of age
+"good" items (m = 91): Q006, Q007, Q009, Q015, Q016, Q018, Q020, Q022, Q024, Q026, Q028, Q029, Q031, Q032, Q034:Q036, Q039, Q042, Q044, Q047, Q049, Q050:Q053, Q055, Q057:Q059, Q062:Q065, Q067, Q069, Q074, Q076, Q078, Q080, Q081, Q085, Q086, Q088, Q090, Q092, Q097, Q098, Q100, Q101, Q102, Q104, Q108:Q111, Q113, Q115, Q118, Q120, Q121, Q124:Q127, Q131, Q133, Q134, Q136, Q138:Q140, Q143, Q145, Q147:Q151, Q154, Q156, Q157, Q159:Q162, Q164, Q166, Q171, Q173, Q174.
+
+# R-packages
+```{r}
+library(car)
+library(dplyr)
+library(ggplot2)
+library(maditr)
+library(mirt)
+library(openxlsx)
+library(tidyr)
+```
+
+# Data
+
+```{r}
+#Load the files with clean math data 
+#load("D:/Dropbox/DAACS-Validity/Analyses/Math/Math_dataClean-UMGC1UA2_4.RData")
+load("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/math/Math_dataClean-UMGC1UA2_4.RData")
+```
+
+# Age marginal table for AnSamp1
+```{r}
+math_College_AnSamp1_tb
+```
+
+# College*age contingency table for AnSamp1
+
+```{r}
+math_Age_d24_AnSamp1_college_tb = Propensities_TwoVars(
+    math.items_AnSamp1,
+    "Age_d24",
+    "college"
+  )
+math_Age_d24_AnSamp1_college_tb
+```
+
+# 91-item IRT Unimodels 
+IRT Analyses of Mathematics Items using Unidimentional Models (without grouping in testlets)
+Unidimentional Models = One-factor Models
+
+83 items were removed due to DIF and/or poor parameters:   
+a-parameters < 0.3 or > 4, and |b-parameters| > 6
+Run every model using the MHRM type of SE (for stochastic approximations of 
+observed information matrix based on the Robbins-Monro filter or a fixed 
+number of MHRM draws without the RM filter)
+
+## 1PL Model
+Remove 15 items with poor parameters 
+```{r}
+math.items_91valid_umgc1ua2<-
+  math.itemsONLY_AnSamp1[,c("Q006", "Q007", "Q009", "Q015", "Q016", "Q018", "Q020", "Q022", "Q024", "Q026", "Q028", "Q029", "Q031", "Q032", "Q034", "Q035", "Q036", "Q039", "Q042", "Q044", "Q047", "Q049", "Q050", "Q051", "Q052", "Q053", "Q055", "Q057", "Q058", "Q059", "Q062", "Q063", "Q064", "Q065", "Q067", "Q069", "Q074", "Q076", "Q078", "Q080", "Q081", "Q085", "Q086", "Q088", "Q090", "Q092", "Q097", "Q098", "Q100", "Q101", "Q102", "Q104", "Q108", "Q109", "Q110", "Q111", "Q113", "Q115", "Q118", "Q120", "Q121", "Q124", "Q125", "Q126", "Q127", "Q131", "Q133", "Q134", "Q136", "Q138", "Q139", "Q140", "Q143", "Q145", "Q147", "Q148", "Q149", "Q150", "Q151", "Q154", "Q156", "Q157", "Q159", "Q160", "Q161", "Q162", "Q164", "Q166", "Q171", "Q173", "Q174")]
+
+# mathUnimodel1PL91 <- mirt(math.items_91valid_umgc1ua2,
+#                            model = 1,
+#                            itemtype = 'Rasch',
+#                            method = 'MHRM', SE = TRUE,
+#                            SE.type = 'MHRM',
+#                            # technical = list(NCYCLES = 1000),
+#                            TOL = 1e-03,
+#                            verbose = TRUE)
+mathUnimodel1PL91
+extract.mirt(mathUnimodel1PL91,"converged")
+```
+
+## 2PL Model
+```{r}
+# mathUnimodel2PL91 <- mirt(math.items_91valid_umgc1ua2,
+#                            model = 1,
+#                            itemtype = '2PL',
+#                            method = 'MHRM', SE = TRUE,
+#                            SE.type = 'MHRM',
+#                            # technical = list(NCYCLES = 1000),
+#                            TOL = 1e-03,
+#                            verbose = TRUE)
+mathUnimodel2PL91
+extract.mirt(mathUnimodel2PL91,"converged")
+```
+
+### ANOVA: 2PL Model fits better than 1PL:p-value < 0.001
+```{r}
+anova(mathUnimodel1PL91,mathUnimodel2PL91)
+```
+#### 91-item model fits better than 159- and 174-item models (smaller AIC, SABIC, and BIC values and a greater logLik value)
+```{r}
+anova(mathUnimodel1PL91,mathUnimodel1PL159)
+```
+
+### Local Dependency Q3 Residuals didn't improved: 159-items model fits better than 91-item models
+However, all three models presented good Q3s (< 0.2)
+```{r}
+# Extract the summary statistics for 174-item model
+Q3summary_stats_174 <- summary(as.vector(mathUnimodel2PL174_Residuals_Q3))
+Q3summary_stats_174
+```
+
+```{r}
+# Extract the summary statistics for 159-item model
+Q3summary_stats_159 <- summary(as.vector(mathUnimodel2PL159_LocalResiduals_Q3))
+Q3summary_stats_159
+```
+
+```{r}
+# Q3 summary statistics
+mathUnimodel2PL91_LocalResiduals_Q3<-
+  residuals(mathUnimodel2PL91,type='Q3')
+# Save the file
+#library(openxlsx)
+write.xlsx(mathUnimodel2PL91_LocalResiduals_Q3, 
+           file = "mathUnimodel2PL91_Residuals_Q3.xlsx", rowNames = TRUE)
+```
+
+### Parameters: 1 item had a < 0.3, and all items had |b| < 2.4; 6% (10 out 91) of items discriminate weakly (a-par < 0.5)
+For the mathUnimodel2PL91 evaluated via SE.type = 'MHRM'
+```{r}
+#library(tidyr)
+# Extract parameters with SE from the fitted mirt model
+tmp <- coef(mathUnimodel2PL91, as.data.frame = TRUE, IRTpars = TRUE, printSE = TRUE)
+# Round the parameters
+tmp <- round(tmp, 2)
+# Keep only complete cases
+tmp <- tmp[complete.cases(tmp), ]
+# Convert 'tmp' to a data frame before using rownames_to_column
+tmp <- as.data.frame(tmp)
+# safely move rownames (e.g., "Q001.a", "Q001.b") into a column
+tmp <- tibble::rownames_to_column(tmp, var="item_param")
+# Separate the qid (e.g., "Q001") and parameter type (e.g., "a" or "b")
+tmp <- tmp %>% 
+  separate(item_param, into = c("qid", "param"), sep="\\.")
+# Pivot from long to wide format, putting 'a' and 'b' parameters and their SEs into separate columns
+final_tmp <- tmp %>%
+  select(qid, param, par, SE) %>%
+  pivot_wider(
+    id_cols = qid,
+    names_from = param,
+    values_from = c(par, SE),
+    names_glue = "{param}_{.value}"
+  ) %>%
+  select(qid, a_par, a_SE, b_par, b_SE)
+# Add a new column for the assigned difficulty level for each item
+final_tmp <- cbind(final_tmp, diffAssigned = NA)
+# Assign difficulty levels based on the qid values
+final_tmp[final_tmp[, "qid"] %in% 
+            math_MEDIUM_items1stAtt_vector, "diffAssigned"] <- 'MEDIUM'
+final_tmp[final_tmp[, "qid"] %in% 
+            math_EASY_items1stAtt_vector, "diffAssigned"] <- 'EASY'
+final_tmp[final_tmp[, "qid"] %in% 
+            math_HARD_items1stAtt_vector, "diffAssigned"] <- 'HARD'
+# Print the resulting matrix
+mathUnimodel2PL91_Parameters <- print(final_tmp)
+write.table(mathUnimodel2PL91_Parameters, 
+            'mathUnimodel2PL91_Parameters.csv', sep = ',')
+```
+#### a-Pars didn't improve, but their standard errors improved: min = -0.1, max = 2.23; SE [0.08, 0.58] 
+Range of 'a' parameters from 91 items
+```{r}
+range(mathUnimodel2PL91_Parameters$a_par, na.rm = TRUE)
+range(mathUnimodel2PL91_Parameters$a_SE, na.rm = TRUE)
+```
+
+Range of 'a' parameters from 159 items
+```{r}
+range(mathUnimodel2PL159_Parameters$a_par, na.rm = TRUE)
+range(mathUnimodel2PL159_Parameters$a_SE, na.rm = TRUE)
+```
+
+#### b-Pars didn't improve too
+Range of 'b' parameters from 91 items
+```{r}
+range(mathUnimodel2PL91_Parameters$b_par, na.rm = TRUE)
+range(mathUnimodel2PL91_Parameters$b_SE, na.rm = TRUE)
+```
+
+Range of 'b' parameters from 159 items
+```{r}
+range(mathUnimodel2PL159_Parameters$b_par, na.rm = TRUE)
+range(mathUnimodel2PL159_Parameters$b_SE, na.rm = TRUE)
+```
+
+## Expected Total Scores Plots are very simlar. However, the plot from 159 items have the best S-shape (the highest slope), while the plot from 91 items have the worst S-shape (the lowest slope),
+
+```{r}
+plot(mathUnimodel2PL174, main = "Expected Total Scores from 174-Items 2PL Model")
+plot(mathUnimodel2PL159, main = "Expected Total Scores from 159-Items 2PL Model")
+plot(mathUnimodel2PL91, main = "Expected Total Scores from 91-Items 2PL Model")
+```
+
+### Items' Scores - IRT Plots 
+```{r save_plot, echo=TRUE, fig.cap="Item Score Plot"}
+# Save the plot as a PDF
+pdf("IRT_Plots_91MathScores_AnSamp1.pdf")
+
+# Generate the plot
+plot(mathUnimodel2PL91, type = 'itemscore')
+
+# Close the PDF device
+dev.off()
+
+# Display the plot inline in the R Markdown output
+mathUnimodel2PL_AnSamp1_91irtPlots<- 
+  plot(mathUnimodel2PL91, type = 'itemscore')
+```
+
+```{r save_plot_reduced, echo=TRUE, fig.cap="Item Score Plot"}
+# Save the plot as a PDF
+pdf("IRT_Plots_91MathScores_AnSamp1.pdf")
+
+# Generate the plot
+plot(mathUnimodel2PL91, type = 'itemscore')
+
+# Close the PDF device
+dev.off()
+
+# Display the plot inline in the R Markdown output
+mathUnimodel2PL_AnSamp1_91irtPlots<- 
+  plot(mathUnimodel2PL91, type = 'itemscore')
+```
+
+## Theta scores Distribution in two models (159 and 91 items) were close to normal.
+
+### Theta91: M = 0.00019, SD = 0.73
+Central tendency characteristics for 91-Items 2PL Model
+```{r}
+Theta_math91<-fscores(mathUnimodel2PL91,full.scores.SE=T)
+# Ensure the data is in a data frame format
+Theta_math91 <- data.frame(Theta_math91)
+
+# Add the variable of DAACS_ID to the dataframe with thetas:
+Theta_math91$DAACS_ID<-math.items_AnSamp1DAACS_ID_vector
+# Rename the columns
+names(Theta_math91)<-c("Theta_math91", "SE_Theta_math91", "DAACS_ID")
+
+#Save theta estimates to external file:
+write.csv(Theta_math91,
+          "Theta_math91.csv",quote=F,row.names=F)
+# Calculate mean and standard deviation
+mean_valueThetas_91 <- mean(Theta_math91$Theta_math91, na.rm = TRUE)
+sd_valueThetas_91 <- sd(Theta_math91$Theta_math91, na.rm = TRUE)
+mean_valueThetas_91 
+sd_valueThetas_91 
+```
+
+### Theta159: M = -0.001, SD = 0.89
+Central tendency characteristics for 159-Items 2PL Model
+```{r}
+mean_valueThetas_159
+sd_valueThetas_159
+```
+
+#### Add theta91 scores to all four samples' dataframes
+```{r}
+math.items_AnSamp1<-merge(math.items_AnSamp1,Theta_math91[,c("Theta_math91","DAACS_ID")])
+math.items_sampW22<-merge(math.items_sampW22,Theta_math91[,c("Theta_math91","DAACS_ID")])
+math.items_AnSamp2<-merge(math.items_AnSamp2,Theta_math91[,c("Theta_math91","DAACS_ID")])
+math.items_samp22D<-merge(math.items_samp22D,Theta_math91[,c("Theta_math91","DAACS_ID")])
+# Move the theta scores to the beginning of the dataframes
+math.items_AnSamp1<- 
+  math.items_AnSamp1[,c(1:21,199, 22:198)]
+math.items_sampW22<- 
+  math.items_sampW22[,c(1:21,200, 22:199)]
+math.items_samp22D<- 
+  math.items_samp22D[,c(1:21,199, 22:198)]
+math.items_AnSamp2<- 
+  math.items_AnSamp2[,c(1:21,199, 22:198)]
+```
+
+Add theta91 scores to mathUnimodel2PL_umgc1ua2_all_Thetas dataframe
+```{r}
+mathUnimodel2PL_umgc1ua2_all_Thetas <- merge(mathUnimodel2PL_umgc1ua2_all_Thetas,Theta_math91)
+# Rename the Theta_math91 into Theta_math91AnSamp1
+# library(maditr)
+# library(dplyr)
+mathUnimodel2PL_umgc1ua2_all_Thetas <- mathUnimodel2PL_umgc1ua2_all_Thetas %>%
+  rename(Theta_math91AnSamp1 = Theta_math91)
+```
+
+### Histograms of Theta-scores
+```{r}
+# Function to create a histogram with legend and left-aligned footnote for SD
+create_histogram <- function(data, variable, mean_value, sd_value, title_prefix, output_file) {
+  # Convert the variable name to a symbol for dynamic use in ggplot2
+  variable_sym <- rlang::sym(variable)
+  
+  # Ensure non-exponential format for mean and SD
+  mean_str <- sprintf("%.4f", mean_value)
+  mean_sd_minus_str <- sprintf("%.4f", mean_value - sd_value)
+  mean_sd_plus_str <- sprintf("%.4f", mean_value + sd_value)
+  sd_str <- sprintf("%.4f", sd_value)
+
+  # Create the histogram
+  hist_plot <- ggplot(data, aes(x = !!variable_sym)) +
+    geom_histogram(
+      binwidth = 0.5,
+      fill = "lightblue",
+      color = "black",
+      alpha = 0.7
+    ) +
+    geom_vline(aes(xintercept = mean_value, color = "Mean"), 
+               linetype = "dashed", size = 1) +
+    geom_vline(aes(xintercept = mean_value + sd_value, color = "Mean + SD"), 
+               linetype = "dotted", size = 1) +
+    geom_vline(aes(xintercept = mean_value - sd_value, color = "Mean - SD"), 
+               linetype = "dotted", size = 1) +
+    scale_color_manual(
+      name = NULL,  # Remove legend title
+      values = c("Mean" = "black", "Mean - SD" = "black", "Mean + SD" = "black"),
+      labels = c(
+        paste0("Mean = ", mean_str),
+        paste0("Mean - SD = ", mean_sd_minus_str),
+        paste0("Mean + SD = ", mean_sd_plus_str)
+      )
+    ) +
+    labs(
+      title = paste0(title_prefix, " (n = ", nrow(data), ")"),
+      x = variable,
+      y = "Frequency",
+      caption = paste0("SD = ", sd_str)  # Add left-aligned footnote for SD
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = c(0.95, 0.95), # Place legend in upper-right corner
+      legend.justification = c("right", "top"),
+      legend.background = element_blank(),  # No frame around legend
+      legend.key = element_blank(),  # No key background
+      plot.caption = element_text(hjust = 0, size = 10, face = "italic")  # Left-aligned footnote
+    )
+  
+  # Save the plot as a PDF
+  ggsave(
+    filename = output_file,
+    plot = hist_plot,
+    width = 8,
+    height = 6
+  )
+  
+  # Display the plot inline in R Markdown or RStudio Plots pane
+  hist_plot
+}
+
+# Example usage
+# Assuming your dataframe is `math.items_AnSamp1` with a variable `Theta_math91`
+mathUnimodel2PL91_AnSamp1_theta_hist<-create_histogram(
+  data = math.items_AnSamp1,
+  variable = "Theta_math91",
+  mean_value = mean(math.items_AnSamp1$Theta_math91),
+  sd_value = sd(math.items_AnSamp1$Theta_math91),
+  title_prefix = "Distribution of Theta-Scores from AnSamp1 using 91 DAACS Math Items",
+  output_file = "mathUnimodel2PL91_AnSamp1_theta_histogram.pdf"
+)
+mathUnimodel2PL91_AnSamp1_theta_hist
+mathUnimodel2PL159_AnSamp1_theta_hist
+mathUnimodel2PL174_AnSamp1_theta_hist
+```
+
+### Density Plots of Theta-scores 
+Density Plot of Theta-scores from 91 items do not overlap fully with Density plots of Theta-scores from 159 and 174 items
+```{r}
+# library(ggplot2)
+# library(reshape2)
+# Function to create three density plots of the correlated measures in a single chart
+
+densityPlot_3Measures <- function(data1_tmp, data2_tmp, data3_tmp, 
+                                  label1_tmp = "Theta-scores from 174 Items",
+                                  label2_tmp = "Theta-scores from 159 Items",
+                                  label3_tmp = "Theta-scores from 91 Items",
+                                  x_label_tmp = "Theta-scores",
+                                  footnote = "",
+                                  output_file = "MathThetaScores_3DensityPlots.pdf") {
+  
+  # Combine data into a dataframe
+  data_long <- data.frame(
+    Theta_Scores = c(data1_tmp, data2_tmp, data3_tmp),
+    Measure = rep(c(label1_tmp, label2_tmp, label3_tmp), each = length(data1_tmp))
+  )
+  
+  # Calculate mean and SD for each measure
+  means <- c(mean(data1_tmp, na.rm = TRUE), mean(data2_tmp, na.rm = TRUE), mean(data3_tmp, na.rm = TRUE))
+  sds <- c(sd(data1_tmp, na.rm = TRUE), sd(data2_tmp, na.rm = TRUE), sd(data3_tmp, na.rm = TRUE))
+  
+  # Create density plot
+  density_plot <- ggplot(data_long, aes(x = Theta_Scores, color = Measure, fill = Measure)) +
+    geom_density(alpha = 0.25, linewidth = 1) +
+    # Add mean lines for each measure
+    geom_vline(aes(xintercept = means[1], color = label1_tmp), linetype = "dotted", linewidth = 1) +
+    geom_vline(aes(xintercept = means[2], color = label2_tmp), linetype = "dashed", linewidth = 1) +
+    geom_vline(aes(xintercept = means[3], color = label3_tmp), linetype = "dotdash", linewidth = 1) +
+    # Custom color and fill scales
+    scale_color_manual(
+      values = c("blue", "green", "red"),
+      name = "Measures",
+      labels = c(
+        sprintf("%s (Mean = %.2f, SD = %.2f)", label1_tmp, means[1], sds[1]),
+        sprintf("%s (Mean = %.2f, SD = %.2f)", label2_tmp, means[2], sds[2]),
+        sprintf("%s (Mean = %.2f, SD = %.2f)", label3_tmp, means[3], sds[3])
+      )
+    ) +
+    scale_fill_manual(
+      values = c("blue", "green", "red"),
+      guide = "none"
+    ) +
+    # Add labels and footnote
+    labs(
+      title = "Density Plots for Theta-scores from 174, 159, and 91 Items",
+      x = x_label_tmp,
+      y = "Density",
+      caption = footnote
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "top",
+      legend.title = element_text(size = 12),
+      legend.text = element_text(size = 10),
+      plot.title = element_text(size = 14, face = "bold"),
+      plot.caption = element_text(size = 9, hjust = 0)
+    )
+  
+  # Display the plot
+  print(density_plot)
+  
+  # Save the plot
+  ggsave(output_file, plot = density_plot, width = 8, height = 6)
+}
+
+# Apply the function with the three datasets:
+densityPlot_3Measures(
+  data1_tmp = Theta_math174[, 1],
+  data2_tmp = Theta_math159[, 1],
+  data3_tmp = Theta_math91[, 1],
+  x_label_tmp = "Theta-scores",
+  footnote = "Note: Data collected in 2022-23 a.y. from UMGC and UAlbany non-speedy respondents",
+  output_file = "MathThetaScores_3DensityPlots.pdf"
+)
+
+```
+Note: The plot does not end abruptly at the right edge of the plot area. See the highest values of the Thetas.
+```{r}
+sort(Theta_math174$Theta_math174, decreasing = TRUE)[1:10]
+sort(Theta_math159$Theta_math159, decreasing = TRUE)[1:10]
+sort(Theta_math91$Theta_math91, decreasing = TRUE)[1:10]
+```
+
+
+### Normality tests 
+
+#### QQ Plots: Both sets of Theta-scores were distributed close to normal distribution
+Both plots show a reasonable fit to a normal distribution, especially around
+the central values. However, the tails deviate slightly from normality, which
+might imply issues such as heavier tails or some skewness. This could suggest
+that both models capture the central tendency well but might need refinement
+in capturing extreme score behaviors.
+
+Combine 2 sets of Theta-scores in a single dataframe
+```{r}
+mathUnimodel2PL_umgc1ua2_RefinedThetas_AnSamp1<-
+  merge(Theta_math91,Theta_math159,all = T)
+```
+
+QQ Plots
+```{r}
+# library(car)
+
+# Save to PDF
+pdf("Math_Theta_Scores_AnSamp1_qq-plots.pdf", width = 8, height = 12)
+
+# Set layout to include three plots in a vertical arrangement (portrait mode)
+par(mfrow = c(3, 1), oma = c(2, 0, 2, 0), mar = c(5, 4, 4, 2))
+
+# Generate QQ-plots for PDF
+qqPlot(Theta_math174$Theta_math174, 
+       main = "QQ Plot for 174-Item Thetas", 
+       col = "red", pch = 20, cex = 1.2)
+
+qqPlot(mathUnimodel2PL_umgc1ua2_RefinedThetas_AnSamp1$Theta_math159, 
+       main = "QQ Plot for 159-Item Thetas", 
+       col = "blue", pch = 20, cex = 1.2)
+
+qqPlot(mathUnimodel2PL_umgc1ua2_RefinedThetas_AnSamp1$Theta_math91, 
+       main = "QQ Plot for 91-Item Thetas", 
+       col = "green", pch = 20, cex = 1.2)
+
+# Add a title above the plots
+mtext(paste("QQ-plots for Math Theta Scores from 174, 159, and 91 Items, AnSamp1 (n =", 
+            nrow(mathUnimodel2PL_umgc1ua2_RefinedThetas_AnSamp1), ")"), 
+      outer = TRUE, line = 0, cex = 1.5, font = 2)
+
+# Add the footnote below the plots
+mtext("Data collected from UMGC and UAlbany non-speedy respondents from July 2022 to May 2023", 
+      outer = TRUE, line = -1.5, cex = 1, font = 3)
+
+# Close PDF device
+dev.off()
+
+# Generate QQ-plots for R Markdown inline display
+par(mfrow = c(1, 3), oma = c(2, 0, 2, 0), mar = c(5, 4, 4, 2))
+
+# Inline plots
+mathUnimodel2PL_umgc1ua2_Thetas174_qqPlot <- qqPlot(Theta_math174$Theta_math174, 
+       main = "174-Math-Item Thetas", 
+       col = "green", pch = 20, cex = 1.2)
+
+mathUnimodel2PL_umgc1ua2_Thetas159_qqPlot <- qqPlot(mathUnimodel2PL_umgc1ua2_RefinedThetas_AnSamp1$Theta_math159, 
+       main = "159-Math-Item Thetas", 
+       col = "blue", pch = 20, cex = 1.2)
+
+mathUnimodel2PL_umgc1ua2_Thetas91_qqPlot <- qqPlot(mathUnimodel2PL_umgc1ua2_RefinedThetas_AnSamp1$Theta_math91, 
+       main = "91-Math-Item Thetas", 
+       col = "red", pch = 20, cex = 1.2)
+
+# Reset graphical parameters
+par(mfrow = c(1, 1))
+
+```
+
+#### ANOVA (t-test) confirms no difference in Theta-scores distributions 
+To test whether the distributions of two Theta-scores are different using an 
+ANOVA test, we need to prepare the data such that the two sets of Theta-scores 
+are compared as groups within the same dataset. 
+```{r}
+# Create two separate vectors of Theta-scores
+Theta_math159_tmp <- mathUnimodel2PL_umgc1ua2_all_Thetas$Theta_math159AnSamp1
+Theta_math91_tmp <- mathUnimodel2PL_umgc1ua2_all_Thetas$Theta_math91
+
+# Combine the two Theta-scores into one data frame with a grouping variable
+Theta_data_tmp <- data.frame(
+  Theta = c(Theta_math159_tmp, Theta_math91_tmp),
+  Group = rep(c("Theta_math159", "Theta_math91"), 
+              times = c(length(Theta_math159_tmp), length(Theta_math91_tmp)))
+)
+
+# Run an ANOVA test
+anova(lm(Theta ~ Group, data = Theta_data_tmp))
+```
+
+```{r}
+min(math.items_AnSamp1$Theta_math91)
+max(math.items_AnSamp1$Theta_math91)
+```
+
+# Save all data in a single file 
+```{r}
+#save.image("D:/Dropbox/DAACS-Validity/Analyses/Math/Math_dataClean-umgc1ua2_5.RData")
+save.image("C:/Users/orosc/OneDrive - University at Albany - SUNY/My DAACS/math/Math_dataClean-umgc1ua2_5.RData")
+```
+
